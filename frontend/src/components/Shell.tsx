@@ -52,7 +52,7 @@ export default function Shell({ children, title = 'Brew-POS v2' }: { children: R
     return userPermissions.includes(permission);
   };
 
-  // Only show top-level pages in bottom bar (e.g. /cashier, /admin — not /admin/discount)
+  // Only show top-level pages in bottom bar (e.g. /pos, /admin — not /admin/discount)
   const visibleModules = MODULES.filter(m => m.enabled && m.path !== '/login' && !m.path.includes('/', 1) && hasPermission(m.permission));
 
   return (

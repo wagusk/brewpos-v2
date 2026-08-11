@@ -64,10 +64,7 @@ export const id: Translations = {
 
   // Modules
   'auth.title': 'Masuk',
-  'cashier.title': 'TABLE',
-  'cashier.openTable': 'Buka Meja?',
-  'cashier.openTableDesc': 'Meja: {name} ({seats} kursi)',
-  'order.title': 'Order',
+  'pos.title': 'POS',
   'kitchen.title': 'Dapur',
   'bar.title': 'Bar',
   'admin.title': 'Admin',

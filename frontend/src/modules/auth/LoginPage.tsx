@@ -2,19 +2,9 @@ import { useState } from 'react';
 import { Box, Button, Typography, Paper, Alert } from '@mui/material';
 import CoffeeIcon from '@mui/icons-material/Coffee';
 import BackspaceIcon from '@mui/icons-material/Backspace';
-
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useTheme } from '../../core/theme/monoTheme';
-
-const ROLE_ROUTES: Record<string, string> = {
-  admin: '/admin',
-  master: '/admin',
-  cashier: '/cashier',
-  waiter: '/order',
-  kitchen: '/kitchen',
-  bar: '/bar',
-};
 
 export default function LoginPage() {
   const [pin, setPin] = useState('');
@@ -39,8 +29,7 @@ export default function LoginPage() {
       const r = await api.login(pin);
       localStorage.setItem('brewpos_token', r.access_token);
       localStorage.setItem('brewpos_user', JSON.stringify(r.user));
-      const dest = ROLE_ROUTES[r.user.role] || '/cashier';
-      nav(dest);
+      nav('/pos');
     } catch (e: any) {
       setError(e?.message || 'Login failed');
       setPin('');

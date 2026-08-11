@@ -2,8 +2,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import Shell from '../components/Shell';
 import LoginPage from '../modules/auth/LoginPage';
-import CashierPage from '../modules/cashier/CashierPage';
-import OrderPage from '../modules/order/OrderPage';
+import POSPage from '../modules/pos/POSPage';
 import KitchenPage from '../modules/kitchen/KitchenPage';
 import BarPage from '../modules/bar/BarPage';
 import AdminPage from '../modules/admin/AdminPage';
@@ -15,8 +14,7 @@ import LanguagePage from '../modules/multilingual/LanguagePage';
 import { t } from '../modules/multilingual/i18n';
 
 const TITLES: Record<string, string> = {
-  '/cashier': t('cashier.title'),
-  '/order': t('order.title'),
+  '/pos': t('pos.title'),
   '/kitchen': t('kitchen.title'),
   '/bar': t('bar.title'),
   '/admin': t('admin.title'),
@@ -45,8 +43,7 @@ export const App = () => {
           <Shell title={title}>
             <Routes>
               {/* Core operations */}
-              <Route path="/cashier" element={<CashierPage />} />
-              <Route path="/order" element={<OrderPage />} />
+              <Route path="/pos" element={<POSPage />} />
               <Route path="/kitchen" element={<KitchenPage />} />
               <Route path="/bar" element={<BarPage />} />
               {/* Admin */}
@@ -58,7 +55,7 @@ export const App = () => {
               <Route path="/settings/ui" element={<UISettingsPage />} />
               <Route path="/settings/language" element={<LanguagePage />} />
               {/* Fallback */}
-              <Route path="/" element={<Navigate to="/cashier" replace />} />
+              <Route path="/" element={<Navigate to="/pos" replace />} />
            </Routes>
          </Shell>
         }

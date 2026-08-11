@@ -232,7 +232,7 @@ async def reprint_ticket_endpoint(order_id: int, db: Session = Depends(get_db), 
 
 
 @router.post("/{order_id}/print-receipt")
-async def reprint_receipt_endpoint(order_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("cashier.view"))):
+async def reprint_receipt_endpoint(order_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("pos.view"))):
     order = get_order(db, order_id)
     if not order:
         raise HTTPException(404, "Not found")

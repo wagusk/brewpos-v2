@@ -64,10 +64,7 @@ export const en: Translations = {
 
   // Modules
   'auth.title': 'Login',
-  'cashier.title': 'TABLE',
-  'cashier.openTable': 'Open Table?',
-  'cashier.openTableDesc': 'Table: {name} ({seats} seats)',
-  'order.title': 'Order',
+  'pos.title': 'POS',
   'kitchen.title': 'Kitchen',
   'bar.title': 'Bar',
   'admin.title': 'Admin',

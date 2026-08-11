@@ -8,7 +8,7 @@
 export interface Module {
   key: string;
   path: string;
-  permission?: string;
+  permission?: string | null;
   icon?: string;
   labelKey: string;
   enabled: boolean;
@@ -16,8 +16,7 @@ export interface Module {
 
 export const MODULES: Module[] = [
   { key: 'login', path: '/login', permission: null, icon: 'Login', labelKey: 'auth.title', enabled: true },
-  { key: 'cashier', path: '/cashier', permission: 'cashier.view', icon: 'PointOfSale', labelKey: 'cashier.title', enabled: true },
-  { key: 'order', path: '/order', permission: 'waiter.view', icon: 'Restaurant', labelKey: 'order.title', enabled: true },
+  { key: 'pos', path: '/pos', permission: 'pos.view', icon: 'PointOfSale', labelKey: 'pos.title', enabled: true },
   { key: 'kitchen', path: '/kitchen', permission: 'kitchen.view', icon: 'SoupKitchen', labelKey: 'kitchen.title', enabled: true },
   { key: 'bar', path: '/bar', permission: 'bar.view', icon: 'LocalBar', labelKey: 'bar.title', enabled: true },
   { key: 'admin', path: '/admin', permission: 'admin.view', icon: 'AdminPanelSettings', labelKey: 'admin.title', enabled: true },

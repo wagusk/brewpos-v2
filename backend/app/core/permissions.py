@@ -7,8 +7,7 @@ from typing import Iterable
 PERMISSIONS = (
     # Page access
     "dashboard.view",
-    "cashier.view",
-    "waiter.view",
+    "pos.view",           # Unified POS workspace (cashier + waiter)
     "kitchen.view",
     "bar.view",
     "menu.view",
@@ -36,12 +35,12 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "master": set(PERMISSIONS),
     # Cashier: can open orders, close bills, apply discounts
     "cashier": {
-        "dashboard.view", "cashier.view", "menu.view",
+        "dashboard.view", "pos.view", "menu.view",
         "order.open", "order.close", "order.cancel", "order.discount", "order.append",
     },
     # Waiter: can open orders, add items, but not close bills
     "waiter": {
-        "dashboard.view", "waiter.view", "menu.view",
+        "dashboard.view", "pos.view", "menu.view",
         "order.open", "order.append",
     },
     # Kitchen: can view kitchen/bar, mark items served
