@@ -1,13 +1,11 @@
 /**
  * Generic admin CRUD dialog — used by Categories/Products/Users/Roles.
- * Renders fields dynamically based on dialogType. No hardcoded text.
+ * Uses POSCard, POSButton, POSTextField for all rendering.
  */
 
 import { useState, useEffect } from 'react';
-import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  Box, TextField, Stack,
-} from '@mui/material';
+import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSTextField, POSSelect } from '../../../components';
 
 export type DialogType = 'category' | 'product' | 'user' | 'role';
 
@@ -15,43 +13,70 @@ interface Props {
   open: boolean;
   type: DialogType;
   editing: any | null;
+  categories?: any[];
+  roles?: any[];
   onClose: () => void;
   onSave: (form: any) => Promise<void> | void;
 }
 
 function CategoryFields({ form, setForm }: any) {
+  const stationOptions = [
+    { label: 'Kitchen', value: 'kitchen' },
+    { label: 'Bar', value: 'bar' },
+  ];
   return (
     <>
-      <TextField label="Name" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
-      <TextField label="Color" value={form.color || '#5b8def'} onChange={(e) => setForm({ ...form, color: e.target.value })} fullWidth />
-      <TextField label="Icon" value={form.icon || 'restaurant'} onChange={(e) => setForm({ ...form, icon: e.target.value })} fullWidth />
-      <TextField label="Station" value={form.kind || 'kitchen'} onChange={(e) => setForm({ ...form, kind: e.target.value })} fullWidth />
-      <TextField label="Sort" type="number" value={form.sort || 0} onChange={(e) => setForm({ ...form, sort: e.target.value })} fullWidth />
+      <POSTextField label="Name" value={form.name || ''} onChange={(v: string) => setForm({ ...form, name: v })} fullWidth />
+      <POSTextField label="Color" value={form.color || '#5b8def'} onChange={(v: string) => setForm({ ...form, color: v })} fullWidth />
+      <POSTextField label="Icon" value={form.icon || 'restaurant'} onChange={(v: string) => setForm({ ...form, icon: v })} fullWidth />
+      <POSSelect label="Station" value={form.kind || 'kitchen'} onChange={(v: any) => setForm({ ...form, kind: v })} options={stationOptions} fullWidth />
+      <POSTextField label="Sort" value={form.sort || 0} onChange={(v: string) => setForm({ ...form, sort: v })} fullWidth />
     </>
   );
 }
 
-function ProductFields({ form, setForm }: any) {
+function ProductFields({ form, setForm, categories = [] }: any) {
+  const categoryOptions = categories.length > 0
+    ? categories.map((cat: any) => ({ label: cat.name, value: cat.id }))
+    : [{ label: 'Default Category', value: form.category_id || 1 }];
+
+  const stationOptions = [
+    { label: 'Default / Inherit', value: '' },
+    { label: 'Kitchen', value: 'kitchen' },
+    { label: 'Bar', value: 'bar' },
+    { label: 'Both', value: 'both' },
+  ];
+
   return (
     <>
-      <TextField label="Name" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
-      <TextField label="Description" value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} fullWidth />
-      <TextField label="Price" type="number" value={form.price || ''} onChange={(e) => setForm({ ...form, price: e.target.value })} fullWidth />
-      <TextField label="Category ID" type="number" value={form.category_id || ''} onChange={(e) => setForm({ ...form, category_id: e.target.value })} fullWidth />
-      <TextField label="Image" value={form.image || ''} onChange={(e) => setForm({ ...form, image: e.target.value })} fullWidth />
-      <TextField label="Cost" type="number" value={form.cost || '0'} onChange={(e) => setForm({ ...form, cost: e.target.value })} fullWidth />
-      <TextField label="Station" value={form.kind || ''} onChange={(e) => setForm({ ...form, kind: e.target.value })} fullWidth placeholder="kitchen / bar / both / empty" />
-      <TextField label="Sort" type="number" value={form.sort || 0} onChange={(e) => setForm({ ...form, sort: e.target.value })} fullWidth />
+      <POSTextField label="Name" value={form.name || ''} onChange={(v: string) => setForm({ ...form, name: v })} fullWidth />
+      <POSTextField label="Description" value={form.description || ''} onChange={(v: string) => setForm({ ...form, description: v })} fullWidth />
+      <POSTextField label="Price" value={form.price || ''} onChange={(v: string) => setForm({ ...form, price: v })} fullWidth />
+      <POSSelect label="Category" value={form.category_id || (categories[0]?.id ?? '')} onChange={(v: any) => setForm({ ...form, category_id: v })} options={categoryOptions} fullWidth />
+      <POSTextField label="Image" value={form.image || ''} onChange={(v: string) => setForm({ ...form, image: v })} fullWidth />
+      <POSTextField label="Cost" value={form.cost || '0'} onChange={(v: string) => setForm({ ...form, cost: v })} fullWidth />
+      <POSSelect label="Station Override" value={form.kind || ''} onChange={(v: any) => setForm({ ...form, kind: v })} options={stationOptions} fullWidth />
+      <POSTextField label="Sort" value={form.sort || 0} onChange={(v: string) => setForm({ ...form, sort: v })} fullWidth />
     </>
   );
 }
 
-function UserFields({ form, setForm }: any) {
+function UserFields({ form, setForm, roles = [] }: any) {
+  const roleOptions = roles.length > 0
+    ? roles.map((r: any) => ({ label: r.label || r.name, value: r.name }))
+    : [
+        { label: 'Admin', value: 'admin' },
+        { label: 'Cashier', value: 'cashier' },
+        { label: 'Waiter', value: 'waiter' },
+        { label: 'Kitchen', value: 'kitchen' },
+        { label: 'Bar', value: 'bar' },
+      ];
+
   return (
     <>
-      <TextField label="Name" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
-      <TextField label="PIN" value={form.pin || ''} onChange={(e) => setForm({ ...form, pin: e.target.value })} fullWidth />
-      <TextField label="Role" value={form.role || 'cashier'} onChange={(e) => setForm({ ...form, role: e.target.value })} fullWidth />
+      <POSTextField label="Name" value={form.name || ''} onChange={(v: string) => setForm({ ...form, name: v })} fullWidth />
+      <POSTextField label="PIN" value={form.pin || ''} onChange={(v: string) => setForm({ ...form, pin: v })} fullWidth />
+      <POSSelect label="Role" value={form.role || 'cashier'} onChange={(v: any) => setForm({ ...form, role: v })} options={roleOptions} fullWidth />
     </>
   );
 }
@@ -59,10 +84,10 @@ function UserFields({ form, setForm }: any) {
 function RoleFields({ form, setForm }: any) {
   return (
     <>
-      <TextField label="Name" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
-      <TextField label="Label" value={form.label || ''} onChange={(e) => setForm({ ...form, label: e.target.value })} fullWidth />
-      <TextField label="Color" value={form.color || '#5b8def'} onChange={(e) => setForm({ ...form, color: e.target.value })} fullWidth />
-      <TextField label="Sort" type="number" value={form.sort || 0} onChange={(e) => setForm({ ...form, sort: e.target.value })} fullWidth />
+      <POSTextField label="Name" value={form.name || ''} onChange={(v: string) => setForm({ ...form, name: v })} fullWidth />
+      <POSTextField label="Label" value={form.label || ''} onChange={(v: string) => setForm({ ...form, label: v })} fullWidth />
+      <POSTextField label="Color" value={form.color || '#5b8def'} onChange={(v: string) => setForm({ ...form, color: v })} fullWidth />
+      <POSTextField label="Sort" value={form.sort || 0} onChange={(v: string) => setForm({ ...form, sort: v })} fullWidth />
     </>
   );
 }
@@ -74,30 +99,44 @@ const FIELD_MAP: Record<DialogType, React.FC<any>> = {
   role: RoleFields,
 };
 
-export default function AdminDialog({ open, type, editing, onClose, onSave }: Props) {
+export default function AdminDialog({ open, type, editing, categories = [], roles = [], onClose, onSave }: Props) {
   const [form, setForm] = useState<any>({});
+  const c = useTheme();
 
   useEffect(() => {
     setForm(editing ? { ...editing } : {});
   }, [editing, open]);
 
+  if (!open) return null;
+
   const Fields = FIELD_MAP[type];
   const title = `${editing ? 'Edit' : 'Add'} ${type.charAt(0).toUpperCase() + type.slice(1)}`;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>
-        {title}
-  </DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          <Fields form={form} setForm={setForm} />
-    </Stack>
-  </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={() => onSave(form)}>Save</Button>
-  </DialogActions>
-</Dialog>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+      }}
+      onClick={onClose}
+    >
+      <div onClick={(e: React.MouseEvent) => e.stopPropagation()} style={{ maxWidth: 480, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+        <POSCard variant="elevated" elevation="lg" padding="lg" style={{ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap}px`, maxHeight: '100%', overflow: 'hidden' }}>
+            <span style={{ fontSize: c.fontSize('h5'), fontWeight: 700, color: c.text, flexShrink: 0 }}>
+              {title}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase}px`, overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+              <Fields form={form} setForm={setForm} categories={categories} roles={roles} />
+            </div>
+            <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, justifyContent: 'flex-end', marginTop: `${c.ui.spacingBase}px`, flexShrink: 0 }}>
+              <POSButton variant="ghost" size="md" onClick={onClose}>Cancel</POSButton>
+              <POSButton variant="primary" size="md" onClick={() => onSave(form)}>Save</POSButton>
+            </div>
+          </div>
+        </POSCard>
+      </div>
+    </div>
   );
 }

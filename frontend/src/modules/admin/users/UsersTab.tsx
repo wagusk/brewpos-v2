@@ -1,10 +1,11 @@
 /**
  * UsersTab - list + edit/delete users.
+ * Uses POSCard, POSButton, POSChip, POSIcon.
  */
 
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSChip, POSIcon } from '../../../components';
+import { Add, Edit, Delete } from '@mui/icons-material';
 
 interface Props {
   users: any[];
@@ -16,46 +17,34 @@ interface Props {
 export default function UsersTab({ users, onAdd, onEdit, onDelete }: Props) {
   const c = useTheme();
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Users ({users.length})</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={onAdd} sx={{ minHeight: c.ui.buttonMinHeight, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${c.ui.cardGap}px` }}>
+        <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+          Users ({users.length})
+        </span>
+        <POSButton variant="primary" size="md" icon={<Add />} onClick={onAdd}>
           Add User
-        </Button>
-      </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Name</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Role</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Active</TableCell>
-              <TableCell align="right" sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {users.map((usr) => (
-              <TableRow key={usr.id} sx={{ '& td': { py: 1.5 } }}>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{usr.name}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={usr.role} sx={{ fontSize: c.fontSize('body2'), height: 28, fontWeight: 600 }} />
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" label={usr.active ? 'Yes' : 'No'} color={usr.active ? 'success' : 'default'} sx={{ fontSize: c.fontSize('body2'), height: 28, fontWeight: 600 }} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => onEdit(usr)} sx={{ width: 48, height: 48 }}>
-                    <Edit fontSize="medium" />
-                  </IconButton>
-                  <IconButton onClick={() => onDelete(usr)} sx={{ width: 48, height: 48 }}>
-                    <Delete fontSize="medium" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </>
+        </POSButton>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+        {users.map((usr) => (
+          <POSCard key={usr.id} variant="default" padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`, flex: 1 }}>
+                <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}>{usr.name}</span>
+                <POSChip variant="default" size="sm">{usr.role}</POSChip>
+                <POSChip variant="status" size="sm" status={usr.active ? 'ready' : 'served'}>
+                  {usr.active ? 'Active' : 'Inactive'}
+                </POSChip>
+              </div>
+              <div style={{ display: 'flex', gap: `${c.ui.spacingBase / 2}px` }}>
+                <POSButton variant="ghost" size="sm" icon={<Edit />} onClick={() => onEdit(usr)} />
+                <POSButton variant="ghost" size="sm" icon={<Delete />} onClick={() => onDelete(usr)} />
+              </div>
+            </div>
+          </POSCard>
+        ))}
+      </div>
+    </div>
   );
 }

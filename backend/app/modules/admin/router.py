@@ -18,6 +18,7 @@ from app.models import User as UserModel, Order, OrderItem, Payment, Category, P
 from sqlalchemy import select
 from app.core.security import require_role, require_permission
 from app.services import crud
+from app.ws import manager
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -126,25 +127,46 @@ def list_tables_endpoint(db: Session = Depends(get_db), user: UserModel = Depend
 
 
 @router.post("/tables", response_model=TableOut)
-def create_table_endpoint(payload: TableIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
-    t = crud.create_table(db, name=payload.name, seats=payload.seats, active=payload.active)
-    return TableOut.model_validate(t)
+async def create_table_endpoint(payload: TableIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    t = crud.create_table(db, name=payload.name, seats=payload.seats, active=payload.active, section=payload.section, sort=payload.sort)
+    out = TableOut.model_validate(t)
+    await manager.broadcast("table_created", out.model_dump())
+    return out
 
 
 @router.patch("/tables/{tid}", response_model=TableOut)
-def update_table_endpoint(tid: int, payload: TableUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
-    t = crud.update_table(db, tid, name=payload.name, seats=payload.seats, active=payload.active)
+async def update_table_endpoint(tid: int, payload: TableUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    t = crud.update_table(db, tid, name=payload.name, seats=payload.seats, active=payload.active, section=payload.section, sort=payload.sort)
     if not t:
         raise HTTPException(404, "Table not found")
-    return TableOut.model_validate(t)
+    out = TableOut.model_validate(t)
+    await manager.broadcast("table_updated", out.model_dump())
+    return out
 
 
 @router.delete("/tables/{tid}")
-def delete_table_endpoint(tid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+async def delete_table_endpoint(tid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
     ok = crud.delete_table(db, tid)
     if not ok:
         raise HTTPException(404, "Table not found")
+    await manager.broadcast("table_deleted", {"id": tid})
     return {"deleted": tid}
+
+
+# ---------- Table Sections (M28) ----------
+
+@router.get("/table-sections")
+def get_table_sections_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    from app.core.config import get_table_sections
+    return {"sections": get_table_sections()}
+
+
+@router.put("/table-sections")
+def put_table_sections_endpoint(payload: dict, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    """Replace the table sections list. Body: `{"sections": [{"name", "color"}, ...]}`."""
+    from app.core.config import set_table_sections
+    sections = payload.get("sections") if isinstance(payload, dict) else None
+    return {"sections": set_table_sections(sections or [])}
 
 
 # ---------- Users ----------

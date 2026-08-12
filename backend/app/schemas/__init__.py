@@ -94,6 +94,22 @@ class TableOut(BaseModel):
     name: str
     seats: int
     active: bool
+    section: str | None = None
+    sort: int = 0
+    # Live order data (null if table is free)
+    order_id: int | None = None
+    order_number: int | None = None
+    order_status: str | None = None
+    order_total: float | None = None
+    items_count: int | None = None
+    # M28 — extra live fields for the Table Overview screen.
+    opened_at: str | None = None          # ISO timestamp when current bill opened
+    occupancy_seconds: int | None = None # how long the bill has been open
+    server_id: int | None = None
+    server_name: str | None = None
+    payment_status: str | None = None    # unpaid | partial | paid | None (free)
+    paid_amount: float | None = None
+    outstanding_amount: float | None = None
 
 
 class OrderItemModOut(BaseModel):
@@ -125,7 +141,13 @@ class PaymentOut(BaseModel):
     amount: float
     tendered: float
     change: float
+    status: str = "pending"
+    provider: str = "mock"
+    external_id: str = ""
+    error_message: str = ""
+    amount_validated: bool = False
     created_at: datetime
+    updated_at: datetime | None = None
 
 
 class OrderOut(BaseModel):
@@ -216,6 +238,24 @@ class OpenBillIn(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# M35 — Payment processing schemas
+# ---------------------------------------------------------------------------
+
+
+class InitiatePaymentIn(BaseModel):
+    order_id: int
+    method: str = "cash"         # cash | card | mobile
+    tendered: float = 0.0
+    provider: str = "mock"       # backend may override via config
+    idempotency_key: str = ""    # client-generated key for duplicate prevention
+
+
+class PaymentActionIn(BaseModel):
+    payment_id: int
+    action: str = "confirm"      # confirm | retry | cancel
+
+
+# ---------------------------------------------------------------------------
 # Admin-managed resource CRUD (categories, products, tables, users)
 # ---------------------------------------------------------------------------
 
@@ -264,12 +304,16 @@ class TableIn(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     seats: int = Field(default=4, ge=1)
     active: bool = True
+    section: str = Field(default="Main Hall", min_length=1, max_length=40)
+    sort: int = Field(default=0, ge=0)
 
 
 class TableUpdateIn(BaseModel):
     name: str | None = None
     seats: int | None = Field(default=None, ge=1)
     active: bool | None = None
+    section: str | None = Field(default=None, min_length=1, max_length=40)
+    sort: int | None = Field(default=None, ge=0)
 
 
 class UserIn(BaseModel):

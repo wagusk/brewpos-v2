@@ -11,6 +11,25 @@
 - Roles: admin, master, cashier, waiter, kitchen, bar
 - Theme: Light theme (MUI light palette, no dark mode)
 
+## UI Design System
+All UI follows the unified visual language documented in `docs/UI-DESIGN-RULE.md`.
+
+**Core Rule:** Every visible element belongs to a card-based, touch-first component. No raw HTML, no hardcoded values, no uncontained text.
+
+**Components (use these, not raw HTML):**
+- `POSCard` — container for all surfaces (tiles, sections, input wrappers)
+- `POSButton` — all interactive actions (primary, secondary, danger, success, ghost, outline)
+- `POSTextField` — all text/number inputs (default, search, pin)
+- `POSChip` — badges, labels, status indicators (status, station, payment, category)
+- `POSIcon` — icon wrapper (consistent sizing + semantic color variants)
+
+**Theme Tokens (use `c.tokenName`, never raw values):**
+- Colors: `c.button`, `c.text`, `c.subtext`, `c.success`, `c.error`, `c.warning`, `c.info`, `c.stationKitchen`, `c.stationBar`, `c.statusPending`, `c.statusReady`, `c.paymentCash`, etc.
+- Sizing: `c.ui.buttonMinHeight`, `c.ui.cardRadius`, `c.ui.cardGap`, `c.ui.sidebarWidth`, `c.ui.barHeight`
+- Typography: `c.fontSize('h4')`, `c.fontSize('body1')`, `c.fontSize('caption')`
+
+**Implementation:** See `docs/UI-DESIGN-RULE.md` for full spec, anti-patterns, and checklist.
+
 ## Architecture: Modular Registry
 
 **Frontend:** `frontend/src/app/moduleRegistry.ts` — central manifest of all modules
@@ -20,18 +39,52 @@ Each feature is a self-contained folder:
 ```
 modules/
   auth/         LoginPage (PIN pad, role-based redirect)
-  cashier/      CashierPage (menu → cart → checkout → orders → close bills)
-  waiter/       WaiterPage (menu → cart → open bill → send to kitchen)
+  tables/       TableViewPage (FIRST operational screen — visual table overview)
+  order/        OrderPage (menu → cart → checkout → send to kitchen)
+  cashier/      CashierPage (legacy floor-plan variant)
+  payment/      Payment dialog (close-bill flow)
   kitchen/      KitchenPage (order display, item status progression)
   bar/          BarPage (filtered order display for bar station)
   admin/        AdminPage (CRUD: categories, products, users, tables, roles + reports)
-  settings/     SettingsPage (tax, printer, discount, database config)
+  settings/     SettingsPage + UISettingsPage (tax, printer, discount, database, UI tokens)
   discount/     DiscountPage (bill history viewer)
   void/         VoidPage (void bills with required reason)
-  glassmorphism/ Static dark theme (glassTheme.ts, GlassComponents.tsx)
-  multilingual/ i18n module (pluggable)
-  dashboard/    (placeholder)
+  multilingual/ i18n module (pluggable, t() helper, en.ts + id.ts)
 ```
+
+Glassmorphism module removed (M1, 2026-08-12) — rule is light-only, no glassmorphism.
+
+## Table View (First Operational Screen — `/tables`)
+
+The default landing after login. Visual table overview grouped by section.
+
+**Backend endpoint:** `GET /api/tables` → `get_tables_with_orders(db)` returns every table enriched with:
+```
+{id, name, seats, active, section, sort,                # table fields
+ order_id, order_number, order_status, order_total,      # active order
+ items_count, opened_at, occupancy_seconds,              # bill state
+ server_id, server_name,                                 # who opened
+ payment_status, paid_amount, outstanding_amount}        # payment state
+```
+
+**GET /api/table-sections** → `{sections: [{name, color}]}` for the section filter.
+
+**Tile fields (every one data-driven via `tableviewConfig`):**
+name, seats, status, orderNumber, itemsCount, orderTotal, openedTime,
+occupancy, server, paymentStatus, paidAmount, outstanding
+
+`name` and `status` are always visible (table identifier + state are non-negotiable).
+All other fields toggle from the Customize menu. Layout persists to
+`localStorage` under `brewpos_tablesview_layout`.
+
+**Tap flow:**
+- Free table → confirmation dialog → `/order?table_id=N` (new bill)
+- Occupied table → direct nav to `/order?order_id=N&table_id=N` (resume)
+- Inactive table → dialog "Yes" button disabled
+
+**Header:** counters (Free/Occupied/Partial/Total/Inactive), refresh button, Customize menu.
+
+**i18n keys:** `tablesview.*` namespace in `en.ts` + `id.ts`.
 
 ## Module Contract
 
@@ -76,30 +129,33 @@ Brew-POS-V2/
 │   └── brewpos.db
 └── frontend/
     ├── src/
-    │   ├── main.tsx            React root (glassTheme + CssBaseline + App)
+    │   ├── main.tsx            React root (MonoThemeProvider + CssBaseline + App)
     │   ├── app/
-    │   │   ├── App.tsx         Module-driven router (10+ routes)
+    │   │   ├── App.tsx         Module-driven router
     │   │   └── moduleRegistry.ts
     │   ├── core/
     │   │   ├── api.ts          API client (all endpoints wired, Bearer auth)
-    │   │   ├── store/index.ts  Redux store (empty reducers)
-    │   │   └── theme/index.ts  (deprecated — glassTheme used instead)
-    │   ├── components/
-    │   │   └── Shell.tsx       Glass sidebar + role-based nav + user chip
+    │   │   ├── store/index.ts  Redux store
+    │   │   ├── ws.ts           WebSocket client
+    │   │   ├── permissions.ts  usePermissions hook
+    │   │   └── theme/monoTheme.tsx  Light theme tokens + provider (useTheme hook)
+    │   ├── components/         POSCard, POSButton, POSTextField, POSChip, POSIcon, Shell
     │   └── modules/
     │       ├── auth/LoginPage.tsx
+    │       ├── tables/TableViewPage.tsx
+    │       ├── order/OrderPage.tsx
     │       ├── cashier/CashierPage.tsx
-    │       ├── waiter/WaiterPage.tsx
+    │       ├── payment/PaymentDialog.tsx
     │       ├── kitchen/KitchenPage.tsx
     │       ├── bar/BarPage.tsx
     │       ├── admin/AdminPage.tsx
-    │       ├── settings/SettingsPage.tsx
+    │       ├── settings/SettingsPage.tsx + UISettingsPage.tsx
     │       ├── discount/DiscountPage.tsx
     │       ├── void/VoidPage.tsx
     │       └── multilingual/i18n/
     │           ├── en.ts
     │           ├── id.ts
-    │           └── index.ts
+    │           └── useT.ts
     └── vite.config.ts
 ```
 

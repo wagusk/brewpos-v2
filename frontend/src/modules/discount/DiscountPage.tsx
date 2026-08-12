@@ -1,13 +1,15 @@
+/**
+ * DiscountPage — bill history viewer.
+ * Uses POSCard, POSButton, POSChip, POSIcon.
+ */
+
 import { useState, useEffect } from 'react';
-import {
-  Box, Typography, Paper, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField,
-  Button, IconButton, Chip, Alert, Snackbar, Dialog,
-  DialogTitle, DialogContent, DialogActions,
-} from '@mui/material';
-import { Edit, Delete, Add } from '@mui/icons-material';
+import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSChip, POSIcon } from '../../components';
+import { Receipt } from '@mui/icons-material';
 import { api } from '../../core/api';
-import { useNavigate } from 'react-router-dom';
+import { useNotifications, Toasts } from '../../shared/notifications/useNotifications';
+import EmptyState from '../../shared/states/EmptyState';
 
 interface Bill {
   order_id: number;
@@ -26,86 +28,68 @@ interface Bill {
 
 export default function DiscountPage() {
   const [bills, setBills] = useState<Bill[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
-  const [discountReason, setDiscountReason] = useState('');
-  const [loading, setLoading] = useState(false);
-  const nav = useNavigate();
+  const c = useTheme();
+  const notifications = useNotifications();
 
-  useEffect(() => {
-    loadBills();
-  }, []);
+  useEffect(() => { loadBills(); }, []);
 
   const loadBills = async () => {
     try {
       const data = await api.getBillHistory('?period=day&limit=50');
       setBills(data.filter((b: Bill) => b.status === 'paid'));
-    } catch (e: any) {
-      setError(e.message);
-    }
-  };
-
-  const openDiscountDialog = (bill: Bill) => {
-    setSelectedBill(bill);
-    setDiscountReason('');
-    setDialogOpen(true);
-  };
-
-  const closeDialog = () => {
-    setDialogOpen(false);
-    setSelectedBill(null);
-    setDiscountReason('');
+    } catch (e: any) { notifications.error(e.message); }
   };
 
   return (
-    <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
-        Bill History & Discounts
-      </Typography>
+    <div style={{ padding: `${c.ui.cardGap}px`, height: '100%', overflow: 'auto' }}>
+      {/* Header */}
+      <POSCard variant="default" padding="md" style={{
+        display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`,
+        marginBottom: `${c.ui.cardGap}px`,
+      }}>
+        <POSIcon icon={<Receipt />} size="md" />
+        <span style={{ fontSize: c.fontSize('h4'), fontWeight: 700, color: c.text }}>
+          Bill History & Discounts
+        </span>
+      </POSCard>
 
+      {/* Bills list */}
       {bills.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary">No paid bills yet</Typography>
-        </Paper>
+        <EmptyState title="No paid bills yet" subtitle="Paid bills will appear here" />
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Bill #</TableCell>
-                <TableCell>Table</TableCell>
-                <TableCell>Customer</TableCell>
-                <TableCell>Total</TableCell>
-                <TableCell>Method</TableCell>
-                <TableCell>Time</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {bills.map(bill => (
-                <TableRow key={bill.order_id}>
-                  <TableCell>#{bill.order_number}</TableCell>
-                  <TableCell>{bill.table_name || 'Takeaway'}</TableCell>
-                  <TableCell>{bill.customer_name || '—'}</TableCell>
-                  <TableCell>${bill.total.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={bill.payment_method || 'N/A'} />
-                  </TableCell>
-                  <TableCell>{new Date(bill.created_at).toLocaleTimeString()}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+          {bills.map(bill => (
+            <POSCard key={bill.order_id} variant="default" padding="md">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${c.ui.spacingBase}px` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
+                    #{bill.order_number}
+                  </span>
+                  <POSChip variant="default" size="sm">
+                    {bill.table_name || 'Takeaway'}
+                  </POSChip>
+                  <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+                    {bill.customer_name || '—'}
+                  </span>
+                  <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}>
+                    ${bill.total.toFixed(2)}
+                  </span>
+                  {bill.payment_method && (
+                    <POSChip variant="payment" size="sm" paymentType={bill.payment_method as any}>
+                      {bill.payment_method}
+                    </POSChip>
+                  )}
+                  <span style={{ fontSize: c.fontSize('caption'), color: c.muted }}>
+                    {new Date(bill.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            </POSCard>
+          ))}
+        </div>
       )}
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
-      </Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>
-      </Snackbar>
-    </Box>
+      <Toasts controller={notifications} />
+    </div>
   );
 }

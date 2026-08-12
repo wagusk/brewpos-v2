@@ -6,14 +6,19 @@
  * Action buttons: print receipt, close bill (for the latest open order).
  *
  * Width comes from useCashierLayout.
+ *
+ * UI Design Rule compliant — uses POSCard, POSButton, POSChip, POSIcon,
+ * and theme tokens throughout. No raw MUI components.
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Button, Chip, Divider, Alert, Snackbar } from '@mui/material';
-import { Receipt as ReceiptIcon, Payment as PaymentIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Receipt as ReceiptIcon, Payment as PaymentIcon, Refresh as RefreshIcon, Chair as ChairIcon } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
 import { useCashierLayout } from '../layoutConfig';
+import { useNotifications, Toasts } from '../../../shared/notifications';
+import { POSCard, POSButton, POSChip, POSIcon } from '../../../components';
 import { api } from '../../../core/api';
+import PaymentDialog from '../../payment/PaymentDialog';
 import type { Table } from '../tableview/TableView';
 
 interface OrderItem {
@@ -44,10 +49,10 @@ interface Props {
 export default function TableBill({ table }: Props) {
   const c = useTheme();
   const { config } = useCashierLayout();
+  const toast = useNotifications();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
 
   const loadOrders = async () => {
     if (!table) {
@@ -69,7 +74,7 @@ export default function TableBill({ table }: Props) {
       });
       setOrders(filtered);
     } catch (e: any) {
-      setError(e.message || 'Failed to load orders');
+      toast.error(e.message || 'Failed to load orders');
     } finally {
       setLoading(false);
     }
@@ -94,239 +99,232 @@ export default function TableBill({ table }: Props) {
   const handlePrint = async (orderId: number) => {
     try {
       await api.printReceipt(orderId);
-      setSuccess('Receipt sent to printer');
+      toast.success('Receipt sent to printer');
     } catch (e: any) {
-      setError(e.message || 'Print failed');
+      toast.error(e.message || 'Print failed');
     }
   };
 
   const handleCloseBill = async (order: Order) => {
-    try {
-      await api.closeOrder(order.id, {
-        payment_method: 'cash',
-        tendered: order.total,
-      });
-      setSuccess('Bill #' + order.number + ' closed');
-      await loadOrders();
-    } catch (e: any) {
-      setError(e.message || 'Close bill failed');
-    }
+    setPaymentOrder(order);
+  };
+
+  const openStatusColor = (status: string): 'pending' | 'accepted' | 'preparing' | 'ready' | 'served' | 'void' => {
+    if (status === 'ready' || status === 'served') return 'ready';
+    if (status === 'voided') return 'void';
+    if (status === 'pending') return 'pending';
+    if (status === 'accepted') return 'accepted';
+    if (status === 'preparing') return 'preparing';
+    return 'pending';
+  };
+
+  const paidStatusColor = (status: string): 'pending' | 'accepted' | 'preparing' | 'ready' | 'served' | 'void' => {
+    if (status === 'voided') return 'void';
+    return 'ready'; // paid uses success/ready green
   };
 
   return (
-    <Box sx={{
+    <div style={{
       width: `${config.floorLeftWidth}px`,
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
       borderRight: `1px solid ${c.divider}`,
-      bgcolor: c.card,
+      backgroundColor: c.card,
       backdropFilter: 'blur(24px)',
       WebkitBackdropFilter: 'blur(24px)',
       overflow: 'hidden',
     }}>
       {/* Header strip */}
-      <Box sx={{
+      <div style={{
         height: `${config.headerHeight}px`,
-        px: 2,
+        padding: `0 ${c.ui.spacingBase * 2}px`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         borderBottom: `1px solid ${c.divider}`,
       }}>
-        <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>
+        <div>
+          <span style={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text, display: 'block' }}>
             {table ? table.name : 'Select a table'}
-      </Typography>
-          <Typography sx={{ fontSize: c.fontSize('caption'), color: c.subtext }}>
+          </span>
+          <span style={{ fontSize: c.fontSize('caption'), color: c.subtext, display: 'block' }}>
             {table ? `${table.seats} seats · ${totals.openCount} open · ${totals.paidCount} paid` : 'No table selected'}
-      </Typography>
-    </Box>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<RefreshIcon />}
+          </span>
+        </div>
+        <POSButton
+          variant="outline"
+          size="sm"
+          icon={<POSIcon icon={<RefreshIcon />} size="sm" />}
           onClick={loadOrders}
           disabled={!table || loading}
-          sx={{
-            color: c.subtext, borderColor: c.buttonBorder, bgcolor: c.input,
-            borderRadius: `${c.ui.inputRadius}px`,
-            minHeight: c.ui.minTouchTarget * 0.7,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
         >
           Refresh
-    </Button>
-  </Box>
+        </POSButton>
+      </div>
 
       {/* Bill list */}
-      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: `${c.ui.spacingBase * 2}px` }}>
         {!table && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1 }}>
-            <Typography sx={{ fontSize: '3rem', opacity: 0.4 }}>🪑</Typography>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: `${c.ui.spacingBase}px`,
+          }}>
+            <POSIcon icon={<ChairIcon />} size="lg" variant="muted" />
+            <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
               Select a table from the floor to view its bill
-        </Typography>
-      </Box>
+            </span>
+          </div>
         )}
 
         {table && orders.length === 0 && !loading && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1 }}>
-            <Typography sx={{ fontSize: '3rem', opacity: 0.4 }}>🧾</Typography>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: `${c.ui.spacingBase}px`,
+          }}>
+            <POSIcon icon={<ReceiptIcon />} size="lg" variant="muted" />
+            <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
               No bills for this table
-        </Typography>
-      </Box>
+            </span>
+          </div>
         )}
 
         {table && orders.length > 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap}px` }}>
             {orders.map((order) => {
               const isOpen = order.status !== 'paid' && order.status !== 'voided';
               return (
-                <Box
+                <POSCard
                   key={order.id}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: isOpen ? c.input : c.card,
-                    border: `1px solid ${isOpen ? c.buttonBorder : c.cardBorder}`,
-                    borderRadius: `${c.ui.inputRadius}px`,
-                    opacity: isOpen ? 1 : 0.75,
-                  }}
+                  variant="default"
+                  padding="sm"
+                  minHeight="auto"
+                  style={{ opacity: isOpen ? 1 : 0.75 }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
+                  {/* Order header */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: `${c.ui.spacingBase}px`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px` }}>
+                      <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
                         {'Bill #' + order.number}
-                </Typography>
-                      <Chip
-                        size="small"
-                        label={order.status}
-                        sx={{
-                          height: 20,
-                          fontSize: c.fontSize('caption'),
-                          bgcolor: isOpen
-                            ? (order.status === 'ready' || order.status === 'served' ? c.warning : c.info)
-                            : (order.status === 'voided' ? c.errorText : c.success),
-                          color: c.buttonText,
-                          fontWeight: 600,
-                        }}
-                      />
-              </Box>
-                    <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
-                      {'$' + order.total.toFixed(2)}
-              </Typography>
-            </Box>
-
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mb: 1 }}>
-                    {order.items.map((item) => (
-                      <Box
-                        key={item.id}
-                        sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      </span>
+                      <POSChip
+                        variant="status"
+                        status={isOpen ? openStatusColor(order.status) : paidStatusColor(order.status)}
+                        size="sm"
                       >
-                        <Typography sx={{ fontSize: c.fontSize('caption'), color: c.text }}>
+                        {order.status}
+                      </POSChip>
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
+                      {'$' + order.total.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Items list */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: c.ui.listGap, marginBottom: `${c.ui.spacingBase}px` }}>
+                    {order.items.map((item) => (
+                      <div
+                        key={item.id}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      >
+                        <span style={{ fontSize: c.fontSize('caption'), color: c.text }}>
                           {item.qty + '× ' + item.name}
-                  </Typography>
-                        <Typography sx={{ fontSize: c.fontSize('caption'), color: c.subtext }}>
+                        </span>
+                        <span style={{ fontSize: c.fontSize('caption'), color: c.subtext }}>
                           {'$' + (item.price * item.qty).toFixed(2)}
-                  </Typography>
-                </Box>
+                        </span>
+                      </div>
                     ))}
-            </Box>
+                  </div>
 
-                  <Divider sx={{ my: 0.5, borderColor: c.divider }} />
+                  {/* Divider */}
+                  <div style={{ height: 1, backgroundColor: c.divider, margin: `${c.ui.spacingBase / 2}px 0` }} />
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                    <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+                  {/* Footer: timestamp + actions */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: `${c.ui.spacingBase}px`,
+                  }}>
+                    <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
                       {new Date(order.created_at).toLocaleString()}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button
-                        variant="outlined"
-                        startIcon={<ReceiptIcon />}
+                    </span>
+                    <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px` }}>
+                      <POSButton
+                        variant="outline"
+                        size="md"
+                        icon={<POSIcon icon={<ReceiptIcon />} size="sm" />}
                         onClick={() => handlePrint(order.id)}
-                        sx={{
-                          color: c.text, borderColor: c.buttonBorder, bgcolor: 'transparent',
-                          borderRadius: `${c.ui.inputRadius}px`,
-                          fontSize: c.fontSize('body2'),
-                          minHeight: c.ui.buttonMinHeight,
-                          px: 2, backgroundImage: 'none',
-                          '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-                        }}
                       >
                         Print
-                      </Button>
+                      </POSButton>
                       {isOpen && (
-                        <Button
-                          variant="contained"
-                          startIcon={<PaymentIcon />}
+                        <POSButton
+                          variant="success"
+                          size="md"
+                          icon={<POSIcon icon={<PaymentIcon />} size="sm" />}
                           onClick={() => handleCloseBill(order)}
-                          sx={{
-                            bgcolor: c.success, color: c.buttonText,
-                            borderRadius: `${c.ui.inputRadius}px`,
-                            fontSize: c.fontSize('body2'),
-                            fontWeight: 700,
-                            minHeight: c.ui.buttonMinHeight,
-                            px: 2, backgroundImage: 'none', boxShadow: 'none',
-                            '&:hover': { opacity: 0.9, backgroundImage: 'none', boxShadow: 'none' },
-                          }}
                         >
                           Close
-                        </Button>
+                        </POSButton>
                       )}
-                    </Box>
-                  </Box>
-          </Box>
+                    </div>
+                  </div>
+                </POSCard>
               );
             })}
-    </Box>
+          </div>
         )}
-  </Box>
+      </div>
 
       {/* Footer: totals summary when bills exist */}
       {table && orders.length > 0 && (
-        <Box sx={{ p: 2, borderTop: `1px solid ${c.divider}` }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text }}>Open</Typography>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
+        <div style={{
+          padding: `${c.ui.spacingBase * 2}px`,
+          borderTop: `1px solid ${c.divider}`,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: c.ui.spacingBase / 2 }}>
+            <span style={{ fontSize: c.fontSize('body2'), color: c.text }}>Open</span>
+            <span style={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
               {'$' + totals.openTotal.toFixed(2)}
-      </Typography>
-    </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text }}>Paid</Typography>
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: c.ui.spacingBase / 2 }}>
+            <span style={{ fontSize: c.fontSize('body2'), color: c.text }}>Paid</span>
+            <span style={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
               {'$' + totals.paidTotal.toFixed(2)}
-      </Typography>
-    </Box>
-          <Divider sx={{ my: 0.5, borderColor: c.divider }} />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>Total</Typography>
-            <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>
+            </span>
+          </div>
+          <div style={{ height: 1, backgroundColor: c.divider, margin: `${c.ui.spacingBase / 2}px 0` }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>Total</span>
+            <span style={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>
               {'$' + (totals.openTotal + totals.paidTotal).toFixed(2)}
-      </Typography>
-    </Box>
-  </Box>
+            </span>
+          </div>
+        </div>
       )}
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert
-          severity="error"
-          onClose={() => setError(null)}
-          sx={{ bgcolor: c.errorBg, color: c.errorText, border: `1px solid ${c.errorBorder}` }}
-        >
-          {error}
-  </Alert>
-</Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert
-          severity="success"
-          onClose={() => setSuccess(null)}
-          sx={{ bgcolor: c.chip, color: c.success, border: `1px solid ${c.success}` }}
-        >
-          {success}
-  </Alert>
-</Snackbar>
-</Box>
+      <Toasts controller={toast} />
+
+      {/* M35 - Payment dialog */}
+      <PaymentDialog
+        open={!!paymentOrder}
+        onClose={() => setPaymentOrder(null)}
+        order={paymentOrder ? { id: paymentOrder.id, number: paymentOrder.number, total: paymentOrder.total, status: paymentOrder.status } : null}
+        onSuccess={() => {
+          setPaymentOrder(null);
+          toast.success('Payment completed');
+          loadOrders();
+        }}
+        onError={(msg) => toast.error(msg)}
+      />
+    </div>
   );
 }

@@ -1,41 +1,30 @@
 /**
  * TablesWorkspace — admin 3-column layout for table CRUD.
+ * Real-time sync via WebSocket with Table View.
  *
  * Pattern: matches v1 Admin > Users workspace
  *   Col 2 (25%) — STATUS filter (All / Active / Inactive)
  *   Col 3 (25%) — table list with New + search, click to select
  *   Col 4 (50%) — DETAIL (read-only rows + Edit / Delete actions)
  *
- * Source of truth:
- *   - Backend: GET/POST/PATCH/DELETE /api/admin/tables
- *   - Frontend: api.getAdminTables / createTable / updateTable / deleteTable
- *
- * No hardcoded values — colors, sizes, radius, and font scale come
- * from useTheme(). Labels come from i18n via the t() helper.
+ * State: Redux + WebSocket for real-time sync with Table View
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import {
-  Box, Typography, Button, TextField, Paper, Chip, Tooltip,
-  IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  Alert, Snackbar, InputAdornment,
-} from '@mui/material';
+import { useSelector, useDispatch } from 'react-redux';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Search as SearchIcon, TableRestaurant as TableIcon,
 } from '@mui/icons-material';
+import { POSCard, POSButton, POSTextField, POSChip, POSIcon } from '../../../components';
 import { api } from '../../../core/api';
 import { useTheme } from '../../../core/theme/monoTheme';
 import { t } from '../../multilingual/i18n';
+import { RootState } from '../../../core/store';
+import { tablesSlice } from '../../../core/store/tablesSlice';
+import { onWebSocketMessage } from '../../../core/ws';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
-
-interface Table {
-  id: number;
-  name: string;
-  seats: number;
-  active: boolean;
-}
 
 const STATUS_FILTERS: { key: StatusFilter; labelKey: string }[] = [
   { key: 'all', labelKey: 'common.all' },
@@ -45,11 +34,13 @@ const STATUS_FILTERS: { key: StatusFilter; labelKey: string }[] = [
 
 export default function TablesWorkspace() {
   const c = useTheme();
-  const [tables, setTables] = useState<Table[]>([]);
+  const dispatch = useDispatch();
+  const tablesMap = useSelector((state: RootState) => state.tables.tables);
+  const tables = Object.values(tablesMap);
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editing, setEditing] = useState<Table | null>(null);
+  const [editing, setEditing] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<{ name: string; seats: number; active: boolean }>({
     name: '', seats: 4, active: true,
@@ -62,7 +53,7 @@ export default function TablesWorkspace() {
     setLoading(true);
     try {
       const data = await api.getAdminTables();
-      setTables(data);
+      dispatch(tablesSlice.actions.setTables(data));
     } catch (e: any) {
       setError(e.message || t('error.generic'));
     } finally {
@@ -70,11 +61,27 @@ export default function TablesWorkspace() {
     }
   };
 
-  useEffect(() => { loadTables(); }, []);
+  useEffect(() => {
+    loadTables();
+
+    // Subscribe to WebSocket table events
+    const unsubscribe = onWebSocketMessage((event, data) => {
+      if (event === 'table_created' || event === 'table_updated') {
+        console.log('[Admin] Table update:', event, data);
+        dispatch(tablesSlice.actions.addOrUpdate(data));
+      } else if (event === 'table_deleted') {
+        console.log('[Admin] Table deleted:', data);
+        dispatch(tablesSlice.actions.removeTable(data.id));
+        if (selectedId === data.id) setSelectedId(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [dispatch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return tables.filter((tbl) => {
+    return tables.filter((tbl: any) => {
       if (filter === 'active' && !tbl.active) return false;
       if (filter === 'inactive' && tbl.active) return false;
       if (q && !tbl.name.toLowerCase().includes(q)) return false;
@@ -150,348 +157,346 @@ export default function TablesWorkspace() {
   };
 
   // ───── Styles (all from theme) ─────
-  const colStyle = {
-    p: 2,
-    bgcolor: c.card,
+  const colStyle: React.CSSProperties = {
+    padding: `${c.ui.cardPadding}px`,
+    backgroundColor: c.card,
     border: `1px solid ${c.cardBorder}`,
     borderRadius: `${c.ui.cardRadius}px`,
     boxShadow: c.ui.cardShadow,
     display: 'flex',
     flexDirection: 'column',
-    gap: 1,
+    gap: `${c.ui.listGap}px`,
     minHeight: 0,
     overflow: 'auto',
-  } as const;
+  };
 
-  const headerStyle = {
+  const headerStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    pb: 1,
+    paddingBottom: `${c.ui.listGap}px`,
     borderBottom: `1px solid ${c.divider}`,
-  } as const;
+  };
 
-  const listItemStyle = (active: boolean) => ({
+  const listItemStyle = (active: boolean): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
-    gap: 1,
-    p: 1,
+    gap: `${c.ui.listGap}px`,
+    padding: `${c.ui.listGap}px`,
     borderRadius: `${c.ui.inputRadius}px`,
     cursor: 'pointer',
-    bgcolor: active ? c.chipActive : 'transparent',
+    backgroundColor: active ? c.chipActive : 'transparent',
     border: `1px solid ${active ? c.buttonBorder : 'transparent'}`,
     minHeight: c.ui.minTouchTarget,
-    '&:hover': { bgcolor: c.cardHover },
-  } as const);
+  });
 
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: '25% 25% 1fr', gap: 2, height: '100%', p: 2 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '25% 25% 1fr', gap: `${c.ui.cardGap}px`, height: '100%', padding: `${c.ui.cardPadding}px` }}>
       {/* ─── Col 2: STATUS filter ─── */}
-      <Paper sx={colStyle}>
-        <Box sx={headerStyle}>
-          <Typography sx={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+      <POSCard padding="sm" style={colStyle}>
+        <div style={headerStyle}>
+          <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
             {t('common.status').toUpperCase()}
-         </Typography>
-       </Box>
+          </span>
+        </div>
         {STATUS_FILTERS.map((f) => {
           const active = filter === f.key;
           return (
-            <Box
+            <POSCard
               key={f.key}
+              clickable
+              selected={active}
               onClick={() => { setFilter(f.key); setSelectedId(null); }}
-              sx={listItemStyle(active)}
+              style={listItemStyle(active)}
             >
-              <TableIcon sx={{ fontSize: c.ui.iconSize, color: active ? c.buttonText : c.text }} />
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontSize: c.fontSize('body1'), fontWeight: active ? 700 : 500, color: active ? c.buttonText : c.text }}>
+              <POSIcon
+                icon={<TableIcon />}
+                size="md"
+                variant={active ? 'info' : 'default'}
+                color={active ? c.buttonText : c.text}
+              />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: c.fontSize('body1'), fontWeight: active ? 700 : 500, color: active ? c.buttonText : c.text }}>
                   {t(f.labelKey)}
-               </Typography>
-                <Typography sx={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext }}>
+                </span>
+                <span style={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext }}>
                   {counts[f.key]} {t('tables.tableCount')}
-               </Typography>
-             </Box>
-           </Box>
+                </span>
+              </div>
+            </POSCard>
           );
         })}
-     </Paper>
+      </POSCard>
 
       {/* ─── Col 3: list + search + New ─── */}
-      <Paper sx={colStyle}>
-        <Box sx={headerStyle}>
-          <Typography sx={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+      <POSCard padding="sm" style={colStyle}>
+        <div style={headerStyle}>
+          <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
             {filter === 'all' ? t('tables.title').toUpperCase() : t(`tables.statusActive`).toUpperCase()}
             {' '}({filtered.length})
-         </Typography>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<AddIcon />}
+          </span>
+          <POSButton
+            variant="primary"
+            size="sm"
             onClick={openCreate}
-            sx={{
-              bgcolor: c.button, color: c.buttonText,
-              borderRadius: `${c.ui.buttonRadius}px`,
-              minHeight: c.ui.minTouchTarget,
-              px: 2, fontWeight: 700,
-              backgroundImage: 'none', boxShadow: 'none',
-              '&:hover': { bgcolor: c.buttonHover, backgroundImage: 'none' },
-            }}
+            icon={<AddIcon />}
           >
             {t('common.add')}
-         </Button>
-       </Box>
-        <TextField
-          size="small"
+          </POSButton>
+        </div>
+        <POSTextField
+          variant="search"
+          size="sm"
           placeholder={t('common.search')}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: c.ui.iconSize, color: c.subtext }} />
-             </InputAdornment>
-            ),
-          }}
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              bgcolor: c.input, color: c.inputText,
-              borderRadius: `${c.ui.inputRadius}px`,
-              '& fieldset': { borderColor: c.inputBorder },
-              '&:hover fieldset': { borderColor: c.buttonBorder },
-              '&.Mui-focused fieldset': { borderColor: c.button },
-            },
-            '& input': { color: c.inputText, fontSize: c.fontSize('body1') },
-          }}
+          onChange={(val: string) => setSearch(val)}
+          icon={<SearchIcon />}
+          fullWidth
         />
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px`, overflow: 'auto', flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px`, overflow: 'auto', flex: 1 }}>
           {filtered.length === 0 && !loading && (
-            <Typography sx={{ fontSize: c.fontSize('body2'), color: c.muted, textAlign: 'center', py: 4 }}>
+            <span style={{ fontSize: c.fontSize('body2'), color: c.muted, textAlign: 'center' as const, padding: `${c.ui.cardPadding * 2}px` }}>
               {t('common.empty')}
-           </Typography>
+            </span>
           )}
           {filtered.map((tbl) => {
             const active = selectedId === tbl.id;
             return (
-              <Box key={tbl.id} onClick={() => setSelectedId(tbl.id)} sx={listItemStyle(active)}>
-                <Box sx={{
+              <POSCard
+                key={tbl.id}
+                clickable
+                selected={active}
+                onClick={() => setSelectedId(tbl.id)}
+                style={listItemStyle(active)}
+              >
+                <div style={{
                   width: 32, height: 32, borderRadius: `${c.ui.inputRadius}px`,
-                  bgcolor: tbl.active ? c.success : c.muted,
+                  backgroundColor: tbl.active ? c.success : c.muted,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: c.buttonText, fontWeight: 700, fontSize: c.fontSize('body2'),
                 }}>
                   {tbl.name.slice(0, 2).toUpperCase()}
-               </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: c.fontSize('body1'), fontWeight: active ? 700 : 500, color: active ? c.buttonText : c.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: c.fontSize('body1'), fontWeight: active ? 700 : 500, color: active ? c.buttonText : c.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {tbl.name}
-                 </Typography>
-                  <Typography sx={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext }}>
+                  </span>
+                  <span style={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext }}>
                     {tbl.seats} {t('tables.seats')}
-                 </Typography>
-               </Box>
-             </Box>
+                  </span>
+                </div>
+              </POSCard>
             );
           })}
-       </Box>
-     </Paper>
+        </div>
+      </POSCard>
 
       {/* ─── Col 4: detail + Edit/Delete ─── */}
-      <Paper sx={colStyle}>
-        <Box sx={headerStyle}>
-          <Typography sx={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+      <POSCard padding="sm" style={colStyle}>
+        <div style={headerStyle}>
+          <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
             {t('common.actions').toUpperCase()}
-         </Typography>
+          </span>
           {selected && (
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
-              <Tooltip title={t('common.edit')}>
-                <IconButton onClick={() => openEdit(selected)}
-                  sx={{
-                    bgcolor: 'rgba(99, 102, 241, 0.15)', color: c.info,
-                    borderRadius: `${c.ui.inputRadius}px`,
-                    width: 48, height: 48,
-                    '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.25)' },
-                  }}>
-                  <EditIcon fontSize="medium" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={t('common.delete')}>
-                <IconButton onClick={() => handleDelete(selected)}
-                  sx={{
-                    bgcolor: 'rgba(248, 113, 113, 0.15)', color: c.errorText,
-                    borderRadius: `${c.ui.inputRadius}px`,
-                    width: 48, height: 48,
-                    '&:hover': { bgcolor: 'rgba(248, 113, 113, 0.25)' },
-                  }}>
-                  <DeleteIcon fontSize="medium" />
-                </IconButton>
-              </Tooltip>
-           </Box>
+            <div style={{ display: 'flex', gap: `${c.ui.listGap}px` }}>
+              <div title={t('common.edit')}>
+                <POSButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEdit(selected)}
+                  icon={<EditIcon />}
+                >
+                  <span>{''}</span>
+                </POSButton>
+              </div>
+              <div title={t('common.delete')}>
+                <POSButton
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDelete(selected)}
+                  icon={<DeleteIcon />}
+                >
+                  <span>{''}</span>
+                </POSButton>
+              </div>
+            </div>
           )}
-       </Box>
+        </div>
 
         {!selected && (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography sx={{ fontSize: c.fontSize('body1'), color: c.muted }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: c.fontSize('body1'), color: c.muted }}>
               {t('tables.selectPrompt')}
-           </Typography>
-         </Box>
+            </span>
+          </div>
         )}
 
         {selected && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
             <DetailRow label={t('common.name')} value={selected.name} />
             <DetailRow label={t('tables.seats')} value={String(selected.seats)} />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext, minWidth: 100 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.listGap}px` }}>
+              <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, minWidth: 100 }}>
                 {t('common.status')}
-             </Typography>
-              <Chip
-                size="small"
-                label={selected.active ? t('tables.statusActive') : t('tables.statusInactive')}
-                sx={{
-                  bgcolor: selected.active ? c.success : c.muted,
-                  color: c.buttonText,
-                  fontWeight: 600,
-                  fontSize: c.fontSize('caption'),
-                }}
-              />
-           </Box>
-         </Box>
+              </span>
+              <POSChip
+                variant="status"
+                status={selected.active ? 'ready' : 'void'}
+                size="sm"
+              >
+                {selected.active ? t('tables.statusActive') : t('tables.statusInactive')}
+              </POSChip>
+            </div>
+          </div>
         )}
-     </Paper>
+      </POSCard>
 
       {/* ─── Create / Edit dialog ─── */}
-      <Dialog open={creating || !!editing} onClose={closeDialog} maxWidth="xs" fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: c.card, color: c.text,
-            border: `1px solid ${c.cardBorder}`,
-            borderRadius: `${c.ui.cardRadius}px`,
-          },
-        }}>
-        <DialogTitle sx={{ color: c.text, fontSize: c.fontSize('h6'), fontWeight: 700 }}>
-          {editing ? t('tables.editTitle') : t('tables.newTitle')}
-       </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label={t('common.name')}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              size="small"
-              fullWidth
-              autoFocus
-              InputLabelProps={{ sx: { color: c.subtext, fontSize: c.fontSize('body2') } }}
-              sx={inputSx(c)}
-            />
-            <TextField
-              label={t('tables.seats')}
-              type="number"
-              value={form.seats}
-              onChange={(e) => setForm({ ...form, seats: Math.max(1, parseInt(e.target.value) || 1) })}
-              size="small"
-              fullWidth
-              inputProps={{ min: 1 }}
-              InputLabelProps={{ sx: { color: c.subtext, fontSize: c.fontSize('body2') } }}
-              sx={inputSx(c)}
-            />
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                fullWidth
-                variant={form.active ? 'contained' : 'outlined'}
-                onClick={() => setForm({ ...form, active: true })}
-                sx={{
-                  bgcolor: form.active ? c.success : 'transparent',
-                  color: form.active ? c.buttonText : c.text,
-                  borderColor: c.buttonBorder,
-                  borderRadius: `${c.ui.buttonRadius}px`,
-                  minHeight: c.ui.buttonMinHeight,
-                  backgroundImage: 'none', boxShadow: 'none',
-                  '&:hover': { bgcolor: form.active ? c.success : c.cardHover, backgroundImage: 'none' },
-                }}
-              >
-                {t('tables.statusActive')}
-             </Button>
-              <Button
-                fullWidth
-                variant={!form.active ? 'contained' : 'outlined'}
-                onClick={() => setForm({ ...form, active: false })}
-                sx={{
-                  bgcolor: !form.active ? c.muted : 'transparent',
-                  color: !form.active ? c.buttonText : c.text,
-                  borderColor: c.buttonBorder,
-                  borderRadius: `${c.ui.buttonRadius}px`,
-                  minHeight: c.ui.buttonMinHeight,
-                  backgroundImage: 'none', boxShadow: 'none',
-                  '&:hover': { bgcolor: !form.active ? c.muted : c.cardHover, backgroundImage: 'none' },
-                }}
-              >
-                {t('tables.statusInactive')}
-             </Button>
-           </Box>
-         </Box>
-       </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={closeDialog}
-            sx={{
-              color: c.text, borderColor: c.buttonBorder,
-              borderRadius: `${c.ui.buttonRadius}px`,
-              minHeight: c.ui.buttonMinHeight,
-              '&:hover': { bgcolor: c.cardHover, borderColor: c.button },
+      {(creating || !!editing) && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={(e: React.MouseEvent) => { if (e.target === e.currentTarget) closeDialog(); }}>
+          <POSCard
+            elevation="lg"
+            padding="lg"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              backgroundColor: c.card,
+              border: `1px solid ${c.cardBorder}`,
+              borderRadius: `${c.ui.cardRadius}px`,
+            }}
+          >
+            <div style={{
+              fontSize: c.fontSize('h6'),
+              fontWeight: 700,
+              color: c.text,
+              marginBottom: `${c.ui.cardPadding}px`,
             }}>
-            {t('common.cancel')}
-         </Button>
-          <Button onClick={handleSave} variant="contained"
-            sx={{
-              bgcolor: c.button, color: c.buttonText,
-              borderRadius: `${c.ui.buttonRadius}px`,
-              minHeight: c.ui.buttonMinHeight, px: 3, fontWeight: 700,
-              backgroundImage: 'none', boxShadow: 'none',
-              '&:hover': { bgcolor: c.buttonHover, backgroundImage: 'none' },
-            }}>
-            {t('common.save')}
-         </Button>
-       </DialogActions>
-     </Dialog>
+              {editing ? t('tables.editTitle') : t('tables.newTitle')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap}px` }}>
+              <POSTextField
+                label={t('common.name')}
+                value={form.name}
+                onChange={(val: string) => setForm({ ...form, name: val })}
+                size="sm"
+                fullWidth
+                autoFocus
+              />
+              <POSTextField
+                label={t('tables.seats')}
+                type="number"
+                value={String(form.seats)}
+                onChange={(val: string) => setForm({ ...form, seats: Math.max(1, parseInt(val) || 1) })}
+                size="sm"
+                fullWidth
+              />
+              <div style={{ display: 'flex', gap: `${c.ui.listGap}px` }}>
+                <POSButton
+                  variant={form.active ? 'success' : 'outline'}
+                  size="md"
+                  fullWidth
+                  onClick={() => setForm({ ...form, active: true })}
+                >
+                  {t('tables.statusActive')}
+                </POSButton>
+                <POSButton
+                  variant={!form.active ? 'secondary' : 'outline'}
+                  size="md"
+                  fullWidth
+                  onClick={() => setForm({ ...form, active: false })}
+                >
+                  {t('tables.statusInactive')}
+                </POSButton>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: `${c.ui.listGap}px`, marginTop: `${c.ui.cardGap}px`, justifyContent: 'flex-end' }}>
+              <POSButton variant="outline" size="md" onClick={closeDialog}>
+                {t('common.cancel')}
+              </POSButton>
+              <POSButton variant="primary" size="md" onClick={handleSave}>
+                {t('common.save')}
+              </POSButton>
+            </div>
+          </POSCard>
+        </div>
+      )}
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)}
-          sx={{ bgcolor: c.errorBg, color: c.errorText, border: `1px solid ${c.errorBorder}` }}>
-          {error}
-       </Alert>
-     </Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert severity="success" onClose={() => setSuccess(null)}
-          sx={{ bgcolor: c.chip, color: c.success, border: `1px solid ${c.success}` }}>
-          {success}
-       </Alert>
-     </Snackbar>
-   </Box>
+      {/* ─── Error notification ─── */}
+      {error && (
+        <div style={{
+          position: 'fixed',
+          bottom: `${c.ui.cardPadding * 2}px`,
+          right: `${c.ui.cardPadding * 2}px`,
+          zIndex: 1100,
+        }}>
+          <POSCard
+            elevation="lg"
+            padding="md"
+            onClick={() => setError(null)}
+            style={{
+              backgroundColor: c.errorBg,
+              border: `1px solid ${c.errorBorder}`,
+              borderRadius: `${c.ui.cardRadius}px`,
+              cursor: 'pointer',
+              maxWidth: 400,
+            }}
+          >
+            <span style={{ color: c.errorText, fontSize: c.fontSize('body1'), fontWeight: 600 }}>
+              {error}
+            </span>
+          </POSCard>
+        </div>
+      )}
+
+      {/* ─── Success notification ─── */}
+      {success && (
+        <div style={{
+          position: 'fixed',
+          bottom: `${c.ui.cardPadding * 2}px`,
+          right: `${c.ui.cardPadding * 2}px`,
+          zIndex: 1100,
+        }}>
+          <POSCard
+            elevation="lg"
+            padding="md"
+            onClick={() => setSuccess(null)}
+            style={{
+              backgroundColor: c.successLight,
+              border: `1px solid ${c.success}`,
+              borderRadius: `${c.ui.cardRadius}px`,
+              cursor: 'pointer',
+              maxWidth: 400,
+            }}
+          >
+            <span style={{ color: c.successDark, fontSize: c.fontSize('body1'), fontWeight: 600 }}>
+              {success}
+            </span>
+          </POSCard>
+        </div>
+      )}
+    </div>
   );
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   const c = useTheme();
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1, borderBottom: `1px solid ${c.divider}` }}>
-      <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext, minWidth: 100 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.listGap}px`, paddingBottom: `${c.ui.listGap}px`, borderBottom: `1px solid ${c.divider}` }}>
+      <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, minWidth: 100 }}>
         {label}
-     </Typography>
-      <Typography sx={{ fontSize: c.fontSize('body1'), color: c.text, fontWeight: 500 }}>
+      </span>
+      <span style={{ fontSize: c.fontSize('body1'), color: c.text, fontWeight: 500 }}>
         {value}
-     </Typography>
-   </Box>
+      </span>
+    </div>
   );
-}
-
-function inputSx(c: ReturnType<typeof useTheme>) {
-  return {
-    '& .MuiOutlinedInput-root': {
-      bgcolor: c.input, color: c.inputText,
-      borderRadius: `${c.ui.inputRadius}px`,
-      '& fieldset': { borderColor: c.inputBorder },
-      '&:hover fieldset': { borderColor: c.buttonBorder },
-      '&.Mui-focused fieldset': { borderColor: c.button },
-    },
-    '& input': { color: c.inputText, fontSize: c.fontSize('body1') },
-  } as const;
 }

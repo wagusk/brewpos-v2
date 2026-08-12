@@ -1,8 +1,10 @@
 /**
  * DatabaseTab — connection URL + reload + reset.
+ * Uses POSCard, POSButton, POSTextField.
  */
 
-import { Box, Typography, TextField, Button, Paper, Alert, Divider } from '@mui/material';
+import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSTextField } from '../../../components';
 import { Save, Refresh } from '@mui/icons-material';
 import { api } from '../../../core/api';
 
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export default function DatabaseTab({ settings, setSettings, setSuccess, setError }: Props) {
+  const c = useTheme();
   const saveUrl = async () => {
     try {
       await api.updateDatabase({ database_url: settings.database_url });
@@ -43,32 +46,29 @@ export default function DatabaseTab({ settings, setSettings, setSuccess, setErro
   };
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 600 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Database</Typography>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Alert severity="warning">
-          Changing the database URL will reload the connection. Make sure the new database is accessible.
-      </Alert>
-        <TextField
+    <POSCard variant="default" padding="lg" style={{ maxWidth: 600 }}>
+      <span style={{ fontSize: c.fontSize('h5'), fontWeight: 700, color: c.text, display: 'block', marginBottom: `${c.ui.cardGap}px` }}>
+        Database Configuration
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase}px` }}>
+        <POSTextField
           label="Database URL"
           value={settings.database_url || ''}
-          onChange={(e) => setSettings({ ...settings, database_url: e.target.value })}
-          size="small"
+          onChange={(v: string) => setSettings({ ...settings, database_url: v })}
           fullWidth
-       />
-        <Box sx={{ display: 'flex', gap: 1.5 }}>
-          <Button variant="contained" startIcon={<Save />} onClick={saveUrl} sx={{ minHeight: 48, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+        />
+        <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, marginTop: `${c.ui.cardGap}px` }}>
+          <POSButton variant="primary" size="md" icon={<Save />} onClick={saveUrl}>
             Save URL
-          </Button>
-          <Button variant="outlined" startIcon={<Refresh />} onClick={reload} sx={{ minHeight: 48, fontWeight: 600 }}>
+          </POSButton>
+          <POSButton variant="outline" size="md" icon={<Refresh />} onClick={reload}>
             Reload
-          </Button>
-        </Box>
-        <Divider />
-        <Button variant="outlined" color="error" onClick={reset} sx={{ minHeight: 48, fontWeight: 600 }}>
-          Reset Database
-        </Button>
-   </Box>
- </Paper>
+          </POSButton>
+          <POSButton variant="danger" size="md" onClick={reset}>
+            Reset DB
+          </POSButton>
+        </div>
+      </div>
+    </POSCard>
   );
 }

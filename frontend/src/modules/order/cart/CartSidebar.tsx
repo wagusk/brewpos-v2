@@ -1,25 +1,50 @@
 /**
- * CartSidebar — cart panel for the waiter page.
- * Shows cart items, table selector, total, and action buttons.
+ * CartSidebar — bill-side panel for the ordering screen.
+ *
+ * Three modes:
+ *   - empty:    no bill yet; shows "Open Empty Bill" + product-add hint
+ *   - new:      waiter is composing items for a fresh bill; "Send to Kitchen"
+ *   - resume:   an existing open bill is being edited; "Append Items" + "Hold"
+ *
+ * All totals (subtotal, tax, total) come from the server for resume mode,
+ * or are computed locally for new-bill mode. Every cart row carries its
+ * own notes + modifier badges. Items can be removed or qty-edited.
+ *
+ * Tax rate is dynamic — fetched from /api/admin/settings on mount.
+ *
+ * UI Design Rule compliant — uses POSCard, POSButton, POSChip, POSIcon,
+ * POSTextField, and theme tokens throughout. No raw MUI components.
  */
 
-import { useState } from 'react';
-import {
-  Box, Typography, Paper, List, ListItem, ListItemText,
-  IconButton, Chip, Button, Alert, Snackbar,
-} from '@mui/material';
+import { useState, useEffect } from 'react';
 import {
   Add, Remove, Send, TableRestaurant, LocalDining, Restaurant,
+  Delete, Pause, Payment, Save, Lock, EditNote,
 } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
-import { api } from '../../../core/api';
+import { useNotifications, Toasts } from '../../../shared/notifications';
+import { POSCard, POSButton, POSChip, POSIcon, POSTextField } from '../../../components';
+import { t } from '../../multilingual/i18n';
+import PaymentDialog from '../../payment/PaymentDialog';
 
-interface CartItem {
+export interface CartItem {
+  uid: string;
   product_id: number;
   name: string;
   price: number;
   qty: number;
   modifiers: number[];
+  notes: string;
+}
+
+export interface ExistingBill {
+  id: number;
+  number: number;
+  status: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  table_id: number | null;
 }
 
 interface Table {
@@ -31,140 +56,459 @@ interface Props {
   cart: CartItem[];
   tables: Table[];
   selectedTable: number | null;
-  onUpdateQty: (productId: number, delta: number) => void;
+  bill: ExistingBill | null;          // non-null = we are editing an existing bill
+  taxRate: number;
+  busy?: boolean;
+  /** User permissions — used to gate primary actions. */
+  permissions?: string[];
+  userRole?: string;
+  onUpdateQty: (uid: string, delta: number) => void;
+  onRemove: (uid: string) => void;
   onSelectTable: (id: number | null) => void;
   onClearCart: () => void;
+  onSendToKitchen?: () => void;       // new bill: create + send
+  onAppendItems?: () => void;         // existing bill: append
+  onHoldBill?: () => void;            // existing bill: keep state, no action
+  onRequestPayment?: () => void;      // existing accepted/ready bill: jump to close
+  onEditNotes?: (uid: string, notes: string) => void;
+  /** M35 - Payment dialog open state */
+  onOpenPaymentDialog?: (bill: { id: number; number: number; total: number; status: string }) => void;
 }
 
-export default function CartSidebar({ cart, tables, selectedTable, onUpdateQty, onSelectTable, onClearCart }: Props) {
+export default function CartSidebar(props: Props) {
+  const {
+    cart, tables, selectedTable, bill, taxRate, busy,
+    permissions = [], userRole, onUpdateQty, onRemove, onSelectTable, onClearCart,
+    onSendToKitchen, onAppendItems, onHoldBill, onRequestPayment, onEditNotes,
+    onOpenPaymentDialog,
+  } = props;
   const c = useTheme();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const toast = useNotifications();
+  const [editingNotesUid, setEditingNotesUid] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState('');
 
-  const cartTotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const isAdmin = userRole === 'admin' || userRole === 'master';
+  const canOpenOrder = isAdmin || permissions.includes('order.open');
+  const canAppend = isAdmin || permissions.includes('order.append');
+  const canClose = isAdmin || permissions.includes('order.close');
+
+  // M35 - Payment dialog state
+  const [paymentBill, setPaymentBill] = useState<{ id: number; number: number; total: number; status: string } | null>(null);
+
+  const newSubtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
 
-  const handleSendToKitchen = async () => {
-    if (cart.length === 0) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await api.checkout({
-        table_id: selectedTable,
-        type: selectedTable ? 'dine_in' : 'takeaway',
-        items: cart,
-      });
-      onClearCart();
-      setSuccess('Order sent to kitchen');
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const subtotal = bill ? bill.subtotal : newSubtotal;
+  const tax = bill ? bill.tax : Math.round(newSubtotal * taxRate * 100) / 100;
+  const total = bill ? bill.total : Math.round((newSubtotal + tax) * 100) / 100;
 
-  const handleOpenBill = async () => {
-    if (!selectedTable) {
-      setError('Please select a table first');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      await api.openBill({ table_id: selectedTable, type: 'dine_in' });
-      setSuccess('Bill opened on ' + (tables.find(t => t.id === selectedTable)?.name || ''));
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const primaryBtnSx = {
-    bgcolor: c.button, color: c.buttonText,
-    minHeight: c.ui.buttonMinHeight,
-    borderRadius: c.ui.buttonRadius + 'px',
-    fontWeight: 600,
-    backgroundImage: 'none', boxShadow: 'none',
-    '&:hover': { bgcolor: c.buttonHover, backgroundImage: 'none', boxShadow: 'none' },
-    '&.Mui-disabled': { bgcolor: c.chip, color: c.muted },
-  } as const;
+  const canEditExisting = !!bill && !['paid', 'void', 'cancelled'].includes(bill.status);
+  const canRequestPayment = !!bill && ['accepted', 'ready', 'served'].includes(bill.status);
 
   return (
-    <Paper sx={{
-      width: 380,
-      display: 'flex', flexDirection: 'column',
-      borderRadius: 0,
-      bgcolor: c.card,
-      borderLeft: '1px solid ' + c.divider,
+    <div style={{
+      width: 400,
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: c.card,
+      borderLeft: `1px solid ${c.divider}`,
+      overflow: 'hidden',
     }}>
-      <Box sx={{ p: 2, borderBottom: '1px solid ' + c.divider }}>
-        <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>{'Cart' + (cartCount > 0 ? ' (' + cartCount + ')' : '')}</Typography>
-      </Box>
+      {/* Header */}
+      <div style={{
+        padding: `${c.ui.spacingBase * 2}px`,
+        borderBottom: `1px solid ${c.divider}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: `${c.ui.spacingBase}px`,
+      }}>
+        <span style={{
+          fontWeight: 700,
+          fontSize: c.fontSize('h6'),
+          color: c.text,
+          flex: 1,
+        }}>
+          {bill ? 'Bill #' + bill.number : 'Cart'}{cartCount > 0 ? ' (' + cartCount + ')' : ''}
+        </span>
+        {bill && (
+          <POSChip variant="default" size="sm" style={{ color: c.text }}>
+            <POSIcon icon={<Lock />} size="sm" variant="default" />
+            {bill.status.toUpperCase()}
+          </POSChip>
+        )}
+      </div>
 
-      <Box sx={{ flex: 1, overflow: 'auto', p: 1.5 }}>
-        {cart.length === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: c.subtext }}>
-            <Restaurant sx={{ fontSize: c.ui.iconSize * 2 + 'rem', mb: 1, opacity: 0.4 }} />
-            <Typography sx={{ fontSize: c.fontSize('body2') }}>Tap items to add</Typography>
-          </Box>
+      {/* Items list */}
+      <div style={{ flex: 1, overflow: 'auto', padding: `${c.ui.spacingBase * 1.5}px` }}>
+        {cart.length === 0 && !bill ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', color: c.subtext, gap: `${c.ui.spacingBase}px`,
+          }}>
+            <POSIcon icon={<Restaurant />} size="lg" variant="muted" />
+            <span style={{ fontSize: c.fontSize('body2') }}>{t('order.noBill')}</span>
+          </div>
+        ) : cart.length === 0 && bill ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', color: c.subtext, gap: `${c.ui.spacingBase}px`,
+          }}>
+            <POSIcon icon={<Restaurant />} size="lg" variant="muted" />
+            <span style={{ fontSize: c.fontSize('body2') }}>{t('order.noNewItems')}</span>
+          </div>
         ) : (
-          <List dense sx={{ py: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
             {cart.map(item => (
-              <ListItem key={item.product_id} sx={{ px: 1, py: 0.75, gap: 1 }}>
-                <ListItemText
-                  primary={item.name}
-                  secondary={'$' + (item.price * item.qty).toFixed(2)}
-                  primaryTypographyProps={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}
-                  secondaryTypographyProps={{ fontSize: c.fontSize('body2'), color: c.subtext }}
-                  sx={{ flex: 1 }}
-                />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <IconButton onClick={() => onUpdateQty(item.product_id, -1)} sx={{ color: c.text, width: 48, height: 48, bgcolor: c.input, border: '1px solid ' + c.inputBorder, borderRadius: c.ui.inputRadius + 'px', '&:hover': { bgcolor: c.cardHover } }}><Remove fontSize="medium" /></IconButton>
-                  <Typography sx={{ fontWeight: 700, minWidth: 28, textAlign: 'center', fontSize: c.fontSize('body1'), color: c.text }}>{item.qty}</Typography>
-                  <IconButton onClick={() => onUpdateQty(item.product_id, 1)} sx={{ color: c.text, width: 48, height: 48, bgcolor: c.input, border: '1px solid ' + c.inputBorder, borderRadius: c.ui.inputRadius + 'px', '&:hover': { bgcolor: c.cardHover } }}><Add fontSize="medium" /></IconButton>
-                </Box>
-              </ListItem>
+              <POSCard key={item.uid} variant="default" padding="sm" minHeight="auto">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: `${c.ui.spacingBase}px` }}>
+                  {/* Item info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{
+                      fontWeight: 700,
+                      fontSize: c.fontSize('body1'),
+                      color: c.text,
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {item.name}
+                    </span>
+                    {item.modifiers.length > 0 && (
+                      <span style={{
+                        fontSize: c.fontSize('caption'),
+                        color: c.subtext,
+                        display: 'block',
+                        marginTop: 2,
+                      }}>
+                        {item.modifiers.length} modifier{item.modifiers.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {item.notes && (
+                      <span
+                        title="Edit note"
+                        onClick={() => {
+                          if (onEditNotes) {
+                            setNotesDraft(item.notes);
+                            setEditingNotesUid(item.uid);
+                          }
+                        }}
+                        style={{
+                          fontSize: c.fontSize('caption'),
+                          color: c.subtext,
+                          fontStyle: 'italic',
+                          marginTop: 2,
+                          display: 'block',
+                          cursor: onEditNotes ? 'pointer' : 'default',
+                        }}
+                        onMouseEnter={(e) => { if (onEditNotes) (e.currentTarget.style.color = c.text); }}
+                        onMouseLeave={(e) => { if (onEditNotes) (e.currentTarget.style.color = c.subtext); }}
+                      >
+                        &quot;{item.notes}&quot;
+                      </span>
+                    )}
+                    {!item.notes && onEditNotes && (
+                      <span
+                        onClick={() => { setNotesDraft(''); setEditingNotesUid(item.uid); }}
+                        style={{
+                          fontSize: c.fontSize('caption'),
+                          color: c.muted,
+                          marginTop: 2,
+                          display: 'block',
+                          cursor: 'pointer',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = c.subtext; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = c.muted; }}
+                      >
+                        + Add note
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: c.fontSize('body2'),
+                      color: c.subtext,
+                      marginTop: c.ui.spacingBase / 2,
+                      display: 'block',
+                    }}>
+                      ${(item.price * item.qty).toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Quantity controls + remove */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: `${c.ui.spacingBase / 2}px`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase / 2}px` }}>
+                      <POSButton
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onUpdateQty(item.uid, -1)}
+                        style={{ minWidth: 40, minHeight: 40, padding: 0 }}
+                      >
+                        <POSIcon icon={<Remove />} size="sm" />
+                      </POSButton>
+                      <span style={{
+                        fontWeight: 700,
+                        minWidth: 28,
+                        textAlign: 'center',
+                        fontSize: c.fontSize('body1'),
+                        color: c.text,
+                      }}>
+                        {item.qty}
+                      </span>
+                      <POSButton
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onUpdateQty(item.uid, 1)}
+                        style={{ minWidth: 40, minHeight: 40, padding: 0 }}
+                      >
+                        <POSIcon icon={<Add />} size="sm" />
+                      </POSButton>
+                    </div>
+                    <POSButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemove(item.uid)}
+                      style={{ minWidth: 40, minHeight: 40, padding: 0, color: c.error }}
+                    >
+                      <POSIcon icon={<Delete />} size="sm" variant="error" />
+                    </POSButton>
+                  </div>
+                </div>
+              </POSCard>
             ))}
-          </List>
+          </div>
         )}
-      </Box>
+      </div>
 
-      <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid ' + c.divider }}>
-        <Typography sx={{ display: 'block', mb: 1, fontSize: c.fontSize('body2'), color: c.subtext, fontWeight: 600 }}>Table</Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Chip label="Takeaway" onClick={() => onSelectTable(null)} color={selectedTable === null ? 'primary' : 'default'} icon={<LocalDining fontSize="small" />} sx={{ fontSize: c.fontSize('body2'), height: 36, fontWeight: 600 }} />
-          {tables.map(t => (
-            <Chip key={t.id} label={t.name} onClick={() => onSelectTable(t.id)} color={selectedTable === t.id ? 'primary' : 'default'} icon={<TableRestaurant fontSize="small" />} sx={{ fontSize: c.fontSize('body2'), height: 36, fontWeight: 600 }} />
-          ))}
-        </Box>
-      </Box>
+      {/* Table selector (new bill only — existing bills have a fixed table) */}
+      {!bill && (
+        <div style={{
+          padding: `${c.ui.spacingBase * 2}px ${c.ui.spacingBase * 2}px`,
+          borderTop: `1px solid ${c.divider}`,
+        }}>
+          <span style={{
+            display: 'block',
+            marginBottom: `${c.ui.spacingBase}px`,
+            fontSize: c.fontSize('body2'),
+            color: c.subtext,
+            fontWeight: 600,
+          }}>
+            Destination
+          </span>
+          <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, flexWrap: 'wrap' }}>
+            <POSChip
+              variant="default"
+              selected={selectedTable === null}
+              onClick={() => onSelectTable(null)}
+              size="md"
+              icon={<POSIcon icon={<LocalDining />} size="sm" variant={selectedTable === null ? 'info' : 'default'} />}
+            >
+              Takeaway
+            </POSChip>
+            {tables.map(t => (
+              <POSChip
+                key={t.id}
+                variant="default"
+                selected={selectedTable === t.id}
+                onClick={() => onSelectTable(t.id)}
+                size="md"
+                icon={<POSIcon icon={<TableRestaurant />} size="sm" variant={selectedTable === t.id ? 'info' : 'default'} />}
+              >
+                {t.name}
+              </POSChip>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <Box sx={{ p: 2, borderTop: '1px solid ' + c.divider, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {/* Totals */}
+      <div style={{
+        padding: `${c.ui.spacingBase * 2}px`,
+        borderTop: `1px solid ${c.divider}`,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: c.ui.spacingBase / 2 }}>
+          <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, fontWeight: 600 }}>Subtotal</span>
+          <span style={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>${subtotal.toFixed(2)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: c.ui.spacingBase / 2 }}>
+          <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, fontWeight: 600 }}>Tax ({(taxRate * 100).toFixed(0)}%)</span>
+          <span style={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>${tax.toFixed(2)}</span>
+        </div>
+        <div style={{ height: 1, backgroundColor: c.divider, margin: `${c.ui.spacingBase}px 0` }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>Total</span>
+          <span style={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>${total.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        padding: `${c.ui.spacingBase * 2}px`,
+        borderTop: `1px solid ${c.divider}`,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: `${c.ui.spacingBase * 1.5}px`,
+      }}>
+        {!bill && canOpenOrder && (
+          <>
+            <POSButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon={<POSIcon icon={<Send />} size="md" variant="default" />}
+              onClick={onSendToKitchen}
+              disabled={cart.length === 0 || busy || !onSendToKitchen}
+            >
+              Send to Kitchen
+            </POSButton>
+            <POSButton
+              variant="outline"
+              size="lg"
+              fullWidth
+              icon={<POSIcon icon={<Save />} size="md" />}
+              onClick={onHoldBill}
+              disabled={cart.length === 0 || !onHoldBill}
+            >
+              Hold / Save
+            </POSButton>
+          </>
+        )}
+        {!bill && !canOpenOrder && (
+          <span style={{
+            fontSize: c.fontSize('caption'),
+            color: c.muted,
+            textAlign: 'center',
+            padding: `${c.ui.spacingBase}px 0`,
+          }}>
+            You don&apos;t have permission to create orders.
+          </span>
+        )}
+        {bill && canAppend && (
+          <>
+            {cart.length > 0 && (
+              <POSButton
+                variant="primary"
+                size="lg"
+                fullWidth
+                icon={<POSIcon icon={<Send />} size="md" variant="default" />}
+                onClick={onAppendItems}
+                disabled={busy || !onAppendItems}
+              >
+                Send {cartCount} to Kitchen
+              </POSButton>
+            )}
+            <POSButton
+              variant="outline"
+              size="lg"
+              fullWidth
+              icon={<POSIcon icon={<Pause />} size="md" />}
+              onClick={onHoldBill}
+              disabled={!onHoldBill}
+            >
+              Hold (Keep Bill Open)
+            </POSButton>
+            {canRequestPayment && canClose && (
+              <POSButton
+                variant="success"
+                size="lg"
+                fullWidth
+                icon={<POSIcon icon={<Payment />} size="md" />}
+                onClick={() => bill ? setPaymentBill({ id: bill.id, number: bill.number, total: bill.total, status: bill.status }) : null}
+                disabled={busy || !bill}
+              >
+                Request Payment
+              </POSButton>
+            )}
+            {canRequestPayment && !canClose && (
+              <span style={{
+                fontSize: c.fontSize('caption'),
+                color: c.muted,
+                textAlign: 'center',
+                padding: `${c.ui.spacingBase}px 0`,
+              }}>
+                Bill is ready — a cashier must process payment.
+              </span>
+            )}
+          </>
+        )}
         {cart.length > 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('subtitle1'), color: c.text }}>Total</Typography>
-            <Typography sx={{ fontWeight: 700, fontSize: c.fontSize('h6'), color: c.text }}>{'$' + cartTotal.toFixed(2)}</Typography>
-          </Box>
+          <POSButton
+            variant="ghost"
+            size="sm"
+            fullWidth
+            onClick={onClearCart}
+          >
+            Clear new items
+          </POSButton>
         )}
-        <Button fullWidth variant="contained" startIcon={<Send />} onClick={handleSendToKitchen} disabled={loading || cart.length === 0} sx={primaryBtnSx}>Send to Kitchen</Button>
-        <Button fullWidth variant="outlined" onClick={handleOpenBill} disabled={loading || !selectedTable} sx={{
-          minHeight: c.ui.buttonMinHeight,
-          borderRadius: c.ui.buttonRadius + 'px',
-          color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-          backgroundImage: 'none', boxShadow: 'none',
-          '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          '&.Mui-disabled': { color: c.muted, borderColor: c.divider },
-        }}>Open Empty Bill</Button>
-      </Box>
+      </div>
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)} sx={{ bgcolor: c.errorBg, color: c.errorText, border: '1px solid ' + c.errorBorder }}>{error}</Alert>
-      </Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert severity="success" onClose={() => setSuccess(null)} sx={{ bgcolor: c.chip, color: c.text, border: '1px solid ' + c.cardBorder }}>{success}</Alert>
-      </Snackbar>
-    </Paper>
+      {/* Edit notes dialog */}
+      {editingNotesUid && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.4)',
+          }}
+          onClick={() => setEditingNotesUid(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420, width: '100%' }}>
+            <POSCard variant="elevated" elevation="lg" padding="lg">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap}px` }}>
+                <span style={{ fontSize: c.fontSize('h5'), fontWeight: 700, color: c.text }}>
+                  Edit note
+                </span>
+                <POSTextField
+                  variant="default"
+                  size="md"
+                  value={notesDraft}
+                  onChange={setNotesDraft}
+                  placeholder="e.g. no onions, extra spicy"
+                  fullWidth
+                  autoFocus
+                />
+                <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, justifyContent: 'flex-end' }}>
+                  <POSButton variant="ghost" size="md" onClick={() => setEditingNotesUid(null)}>
+                    Cancel
+                  </POSButton>
+                  <POSButton
+                    variant="primary"
+                    size="md"
+                    onClick={() => {
+                      if (editingNotesUid && onEditNotes) onEditNotes(editingNotesUid, notesDraft.trim());
+                      setEditingNotesUid(null);
+                    }}
+                  >
+                    Save
+                  </POSButton>
+                </div>
+              </div>
+            </POSCard>
+          </div>
+        </div>
+      )}
+
+      <Toasts controller={toast} />
+
+      {/* M35 - Payment dialog */}
+      <PaymentDialog
+        open={!!paymentBill}
+        onClose={() => setPaymentBill(null)}
+        order={paymentBill}
+        onSuccess={() => {
+          setPaymentBill(null);
+          toast.success('Payment completed');
+        }}
+        onError={(msg) => toast.error(msg)}
+      />
+    </div>
   );
 }

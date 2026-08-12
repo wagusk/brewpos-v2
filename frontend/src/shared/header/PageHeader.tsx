@@ -1,54 +1,60 @@
 /**
  * PageHeader - consistent page title bar.
- * Replaces ad-hoc Box+Typography header rows.
+ * Uses POSCard for container, POSChip for badge, POSIcon for visual hierarchy.
  */
 
-import { Box, Typography, Stack, Chip } from '@mui/material';
 import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSChip, POSIcon } from '../../components';
 
 interface Props {
   title: string;
   subtitle?: string;
   badge?: { label: string; color?: string };
   actions?: React.ReactNode;
+  icon?: React.ReactNode;
 }
 
-export default function PageHeader({ title, subtitle, badge, actions }: Props) {
+export default function PageHeader({ title, subtitle, badge, actions, icon }: Props) {
   const c = useTheme();
   return (
-    <Box sx={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      mb: 2, pb: 1.5, borderBottom: '1px solid ' + c.divider,
-    }}>
-      <Stack spacing={0.25}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Typography variant="h5" sx={{ color: c.text, fontWeight: 700 }}>
+    <POSCard
+      variant="default"
+      padding="md"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: `${c.ui.cardGap}px`,
+        borderBottom: `1px solid ${c.divider}`,
+        borderRadius: 0,
+        boxShadow: 'none',
+        border: 'none',
+        borderBottomWidth: 1,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase / 2}px` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px` }}>
+          {icon && <POSIcon icon={icon} size="md" />}
+          <span style={{ fontSize: c.fontSize('h4'), fontWeight: 700, color: c.text }}>
             {title}
-     </Typography>
+          </span>
           {badge && (
-            <Chip
-              size="small"
-              label={badge.label}
-              sx={{
-                bgcolor: badge.color ?? c.chip,
-                color: c.text,
-                fontSize: c.fontSize('caption'),
-                height: 22,
-              }}
-            />
+            <POSChip variant="default" size="sm">
+              {badge.label}
+            </POSChip>
           )}
-       </Stack>
+        </div>
         {subtitle && (
-          <Typography sx={{ color: c.subtext, fontSize: c.fontSize('body2') }}>
+          <span style={{ color: c.subtext, fontSize: c.fontSize('body2') }}>
             {subtitle}
-     </Typography>
-     )}
-     </Stack>
+          </span>
+        )}
+      </div>
       {actions && (
-        <Stack direction="row" spacing={1}>
+        <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, alignItems: 'center' }}>
           {actions}
-       </Stack>
+        </div>
       )}
-   </Box>
+    </POSCard>
   );
 }

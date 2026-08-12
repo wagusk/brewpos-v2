@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas import CategoryOut, ProductWithMods, ModGroupOut, ModOptionOut, MenuOut, TableOut
-from app.services import get_menu, get_tables
+from app.services import get_menu, get_tables_with_orders
 
 router = APIRouter(prefix="/api", tags=["menu"])
 
@@ -29,6 +29,20 @@ def menu(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/tables", response_model=list[TableOut])
+@router.get("/tables")
 def tables(db: Session = Depends(get_db)):
-    return [TableOut.model_validate(t) for t in get_tables(db)]
+    """Return all tables with their active order data."""
+    return get_tables_with_orders(db)
+
+
+@router.get("/tables/with-orders")
+def tables_with_orders(db: Session = Depends(get_db)):
+    """Return all tables with their active order data (explicit endpoint)."""
+    return get_tables_with_orders(db)
+
+
+@router.get("/table-sections")
+def table_sections(db: Session = Depends(get_db)):
+    """Return the configured table-section list (M28)."""
+    from app.core.config import get_table_sections
+    return {"sections": get_table_sections()}

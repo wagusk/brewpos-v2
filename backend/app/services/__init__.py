@@ -35,11 +35,84 @@ def get_menu(db: Session) -> dict:
     return {"categories": cats, "products": products}
 
 
-def get_tables(db: Session) -> list[Table]:
-    # Returns ALL tables regardless of active status.
-    # Cashier floor view needs inactive tables visible so staff can
-    # see/activate them. Admin can still CRUD via /api/admin/tables.
-    return db.scalars(select(Table).order_by(Table.name)).all()
+def get_tables_with_orders(db: Session) -> list[dict]:
+    """Return all tables enriched with their active order data.
+
+    For each table, includes live order info (order_id, number, status,
+    total, items_count, opened_at, occupancy_seconds, server) plus the
+    payment status (unpaid / partial / paid) derived from the sum of
+    payments on the active order. This powers the Table Overview screen
+    so staff can see table state at a glance.
+
+    M28 — also returns `section` and `sort` so the UI can group tiles
+    by configurable section without an extra round-trip.
+    """
+    now = datetime.utcnow()
+    tables = db.scalars(select(Table).order_by(Table.sort, Table.name)).all()
+    result = []
+    for table in tables:
+        # Find the active order for this table (if any)
+        active_order = (
+            db.query(Order)
+            .filter(
+                Order.table_id == table.id,
+                Order.status.in_(("open", "accepted", "preparing", "ready", "served")),
+            )
+            .order_by(Order.created_at.desc())
+            .first()
+        )
+        paid_amount = 0.0
+        server_name: str | None = None
+        server_id: int | None = None
+        opened_iso: str | None = None
+        occupancy: int | None = None
+        payment_status: str | None = None
+        outstanding: float | None = None
+        if active_order is not None:
+            paid_amount = float(sum(p.amount for p in active_order.payments))
+            opened_iso = active_order.created_at.isoformat() + "Z"
+            occupancy = max(0, int((now - active_order.created_at).total_seconds()))
+            server_id = active_order.created_by
+            if active_order.items is not None:
+                # Touch items so the relationship loads and items_count
+                # is accurate on freshly-attached sessions.
+                _ = active_order.items
+            # Resolve server name via single-row fetch keyed off the
+            # FK. Cheap because users are tiny + cached.
+            if server_id is not None:
+                creator_obj = db.get(User, server_id)
+                if creator_obj is not None:
+                    server_name = creator_obj.name
+            total = float(active_order.total or 0.0)
+            if paid_amount <= 0.0:
+                payment_status = "unpaid"
+            elif paid_amount + 0.005 < total:
+                payment_status = "partial"
+            else:
+                payment_status = "paid"
+            outstanding = max(0.0, total - paid_amount)
+        table_data = {
+            "id": table.id,
+            "name": table.name,
+            "seats": table.seats,
+            "active": table.active,
+            "section": table.section or "Main Hall",
+            "sort": int(table.sort or 0),
+            "order_id": active_order.id if active_order else None,
+            "order_number": active_order.number if active_order else None,
+            "order_status": active_order.status if active_order else None,
+            "order_total": active_order.total if active_order else None,
+            "items_count": len(active_order.items) if active_order else None,
+            "opened_at": opened_iso,
+            "occupancy_seconds": occupancy,
+            "server_id": server_id,
+            "server_name": server_name,
+            "payment_status": payment_status,
+            "paid_amount": paid_amount if active_order else None,
+            "outstanding_amount": outstanding,
+        }
+        result.append(table_data)
+    return result
 
 
 def _next_order_number(db: Session) -> int:

@@ -1,10 +1,11 @@
 /**
  * ErrorState - centered error message with retry button.
+ * Uses POSCard, POSButton, POSIcon.
  */
 
-import { Box, Typography, Button } from '@mui/material';
-import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSButton, POSIcon } from '../../components';
+import { ErrorOutline as ErrorIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 
 interface Props {
   title?: string;
@@ -23,35 +24,29 @@ export default function ErrorState({
 }: Props) {
   const c = useTheme();
   return (
-    <Box sx={{
-      height, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', gap: 1.5,
-      p: 4,
-    }}>
-      <ErrorIcon sx={{ fontSize: '3rem', color: c.errorText }} />
-      <Typography sx={{ color: c.text, fontSize: c.fontSize('h6'), fontWeight: 700 }}>
+    <POSCard
+      variant="default"
+      padding="lg"
+      style={{
+        height,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: `${c.ui.spacingBase * 1.5}px`,
+      }}
+    >
+      <POSIcon icon={<ErrorIcon />} size="lg" variant="error" />
+      <span style={{ color: c.text, fontSize: c.fontSize('h6'), fontWeight: 700 }}>
         {title}
-    </Typography>
+      </span>
       {message && (
-        <Typography sx={{ color: c.subtext, fontSize: c.fontSize('body2'), textAlign: 'center', maxWidth: 480 }}>
+        <span style={{ color: c.subtext, fontSize: c.fontSize('body2'), textAlign: 'center', maxWidth: 480 }}>
           {message}
-      </Typography>
-     )}
+        </span>
+      )}
       {onRetry && (
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={onRetry}
-          sx={{
-            color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-            borderRadius: c.ui.inputRadius + 'px',
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
-        >
+        <POSButton variant="outline" size="md" icon={<RefreshIcon />} onClick={onRetry}>
           {retryLabel}
-      </Button>
-     )}
- </Box>
+        </POSButton>
+      )}
+    </POSCard>
   );
 }

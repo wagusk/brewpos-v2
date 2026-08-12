@@ -3,8 +3,8 @@
  * Theme-driven. No hardcoded values.
  */
 
-import { Box, Typography, Button } from '@mui/material';
 import { useTheme } from '../../../core/theme/monoTheme';
+import POSButton from '../../../components/POSButton';
 
 interface Props {
   label: string;
@@ -18,49 +18,64 @@ interface Props {
 
 export default function LayoutSlider({ label, unit, value, min, max, step, onChange }: Props) {
   const c = useTheme();
+  const progress = ((value - min) / (max - min)) * 100;
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Label + value row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{
+          fontSize: c.fontSize('body2'), color: c.text,
+          fontWeight: 600,
+        }}>
           {label}
-    </Typography>
-        <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext, fontFamily: 'monospace' }}>
+        </span>
+        <span style={{
+          fontSize: c.fontSize('body2'), color: c.subtext,
+          fontFamily: 'monospace',
+        }}>
           {value}{unit}
-    </Typography>
-  </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Button
-          size="small"
-          variant="outlined"
+        </span>
+      </div>
+
+      {/* Slider row: decrement button + track + increment button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: c.ui.spacingBase }}>
+        <POSButton
+          variant="outline"
+          size="sm"
           onClick={() => onChange(Math.max(min, value - step))}
-          sx={{
-            minWidth: 36, color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
+          style={{ minWidth: 36, padding: '0 8px' }}
         >
           −
-    </Button>
-        <Box sx={{ flex: 1, height: 6, bgcolor: c.input, borderRadius: 3, border: '1px solid ' + c.inputBorder, position: 'relative' }}>
-          <Box sx={{
+        </POSButton>
+
+        {/* Track */}
+        <div style={{
+          flex: 1, height: 6,
+          backgroundColor: c.input,
+          borderRadius: c.ui.cardRadius,
+          border: `1px solid ${c.inputBorder}`,
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          {/* Filled portion */}
+          <div style={{
             position: 'absolute', left: 0, top: 0, bottom: 0,
-            width: ((value - min) / (max - min)) * 100 + '%',
-            bgcolor: c.button, borderRadius: 3,
+            width: `${progress}%`,
+            backgroundColor: c.button,
+            borderRadius: c.ui.cardRadius,
           }} />
-    </Box>
-        <Button
-          size="small"
-          variant="outlined"
+        </div>
+
+        <POSButton
+          variant="outline"
+          size="sm"
           onClick={() => onChange(Math.min(max, value + step))}
-          sx={{
-            minWidth: 36, color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
+          style={{ minWidth: 36, padding: '0 8px' }}
         >
           +
-    </Button>
-  </Box>
-</Box>
+        </POSButton>
+      </div>
+    </div>
   );
 }

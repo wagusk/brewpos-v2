@@ -1,10 +1,11 @@
 /**
  * CategoriesTab - list + edit/delete categories.
+ * Uses POSCard, POSButton, POSChip, POSIcon.
  */
 
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSChip, POSIcon } from '../../../components';
+import { Add, Edit, Delete } from '@mui/icons-material';
 
 interface Props {
   categories: any[];
@@ -16,48 +17,33 @@ interface Props {
 export default function CategoriesTab({ categories, onAdd, onEdit, onDelete }: Props) {
   const c = useTheme();
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Categories ({categories.length})</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={onAdd} sx={{ minHeight: c.ui.buttonMinHeight, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${c.ui.cardGap}px` }}>
+        <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+          Categories ({categories.length})
+        </span>
+        <POSButton variant="primary" size="md" icon={<Add />} onClick={onAdd}>
           Add Category
-        </Button>
-      </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Name</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Color</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Icon</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Station</TableCell>
-              <TableCell align="right" sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {categories.map((cat) => (
-              <TableRow key={cat.id} sx={{ '& td': { py: 1.5 } }}>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{cat.name}</TableCell>
-                <TableCell>
-                  <Box sx={{ width: 24, height: 24, bgcolor: cat.color, borderRadius: 1 }} />
-                </TableCell>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{cat.icon}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={cat.kind} sx={{ fontSize: c.fontSize('body2'), height: 28, fontWeight: 600 }} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => onEdit(cat)} sx={{ width: 48, height: 48 }}>
-                    <Edit fontSize="medium" />
-                  </IconButton>
-                  <IconButton onClick={() => onDelete(cat)} sx={{ width: 48, height: 48 }}>
-                    <Delete fontSize="medium" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </>
+        </POSButton>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+        {categories.map((cat) => (
+          <POSCard key={cat.id} variant="default" padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`, flex: 1 }}>
+                <div style={{ width: 24, height: 24, backgroundColor: cat.color, borderRadius: 4, flexShrink: 0 }} />
+                <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}>{cat.name}</span>
+                <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>{cat.icon}</span>
+                <POSChip variant="station" size="sm" stationType={cat.kind}>{cat.kind}</POSChip>
+              </div>
+              <div style={{ display: 'flex', gap: `${c.ui.spacingBase / 2}px` }}>
+                <POSButton variant="ghost" size="sm" icon={<Edit />} onClick={() => onEdit(cat)} />
+                <POSButton variant="ghost" size="sm" icon={<Delete />} onClick={() => onDelete(cat)} />
+              </div>
+            </div>
+          </POSCard>
+        ))}
+      </div>
+    </div>
   );
 }

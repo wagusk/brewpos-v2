@@ -1,8 +1,10 @@
 /**
  * PrinterTab — printer mode + network config + test print.
+ * Uses POSCard, POSButton, POSTextField.
  */
 
-import { Box, Typography, TextField, Button, Paper, FormControlLabel, Switch, Stack } from '@mui/material';
+import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSTextField, POSSelect } from '../../../components';
 import { Save, Print } from '@mui/icons-material';
 import { api } from '../../../core/api';
 
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export default function PrinterTab({ printerSettings, setPrinterSettings, loading, setLoading, setSuccess, setError }: Props) {
+  const c = useTheme();
   const save = async () => {
     setLoading(true);
     try {
@@ -41,66 +44,46 @@ export default function PrinterTab({ printerSettings, setPrinterSettings, loadin
     }
   };
 
+  const modeOptions = [
+    { label: 'Dummy (Mock)', value: 'dummy' },
+    { label: 'Network (ESC/POS IP)', value: 'network' },
+    { label: 'USB / Serial', value: 'usb' },
+  ];
+
   return (
-    <Paper sx={{ p: 3, maxWidth: 600 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Printer Configuration</Typography>
-      <Stack spacing={2}>
-        <TextField
+    <POSCard variant="default" padding="lg" style={{ maxWidth: 600 }}>
+      <span style={{ fontSize: c.fontSize('h5'), fontWeight: 700, color: c.text, display: 'block', marginBottom: `${c.ui.cardGap}px` }}>
+        Printer Configuration
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase}px` }}>
+        <POSSelect
           label="Mode"
-          select
-          SelectProps={{ native: true }}
           value={printerSettings.mode || 'dummy'}
-          onChange={(e) => setPrinterSettings({ ...printerSettings, mode: e.target.value })}
-          size="small"
-        >
-          <option value="dummy">Dummy (no printer</option>
-          <option value="network">Network (TCP</option>
-          <option value="usb">USB</option>
-      </TextField>
-
-        {printerSettings.mode === 'network' && (
-          <>
-            <TextField
-              label="Host"
-              value={printerSettings.network?.host || ''}
-              onChange={(e) => setPrinterSettings({
-                ...printerSettings,
-                network: { ...printerSettings.network, host: e.target.value },
-              })}
-              size="small"
-            />
-            <TextField
-              label="Port"
-              type="number"
-              value={printerSettings.network?.port || 9100}
-              onChange={(e) => setPrinterSettings({
-                ...printerSettings,
-                network: { ...printerSettings.network, port: parseInt(e.target.value) || 9100 },
-              })}
-              size="small"
-            />
-         </>
-        )}
-
-        <FormControlLabel
-          control={
-            <Switch
-              checked={printerSettings.dry_run || false}
-              onChange={(e) => setPrinterSettings({ ...printerSettings, dry_run: e.target.checked })}
-            />
-          }
-          label="Dry run (log instead of print)"
-       />
-
-        <Box sx={{ display: 'flex', gap: 1.5, mt: 2 }}>
-          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={loading} sx={{ minHeight: 48, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+          onChange={(v: string) => setPrinterSettings({ ...printerSettings, mode: v })}
+          options={modeOptions}
+          fullWidth
+        />
+        <POSTextField
+          label="Host"
+          value={printerSettings.host || ''}
+          onChange={(v: string) => setPrinterSettings({ ...printerSettings, host: v })}
+          fullWidth
+        />
+        <POSTextField
+          label="Port"
+          value={printerSettings.port || ''}
+          onChange={(v: string) => setPrinterSettings({ ...printerSettings, port: v })}
+          fullWidth
+        />
+        <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, marginTop: `${c.ui.cardGap}px` }}>
+          <POSButton variant="primary" size="md" icon={<Save />} loading={loading} onClick={save}>
             Save
-          </Button>
-          <Button variant="outlined" startIcon={<Print />} onClick={test} disabled={loading} sx={{ minHeight: 48, fontWeight: 600 }}>
+          </POSButton>
+          <POSButton variant="outline" size="md" icon={<Print />} loading={loading} onClick={test}>
             Test Print
-          </Button>
-        </Box>
-    </Stack>
-  </Paper>
+          </POSButton>
+        </div>
+      </div>
+    </POSCard>
   );
 }

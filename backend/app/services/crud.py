@@ -180,21 +180,21 @@ def delete_product(db: Session, pid: int) -> bool:
 # ---------- Tables ----------
 
 def list_tables(db: Session, *, include_inactive: bool = True) -> list[Table]:
-    stmt = select(Table).order_by(Table.name)
+    stmt = select(Table).order_by(Table.sort, Table.name)
     if not include_inactive:
         stmt = stmt.where(Table.active.is_(True))
     return db.scalars(stmt).all()
 
 
-def create_table(db: Session, *, name: str, seats: int, active: bool) -> Table:
-    t = Table(name=name, seats=seats, active=active)
+def create_table(db: Session, *, name: str, seats: int, active: bool, section: str = "Main Hall", sort: int = 0) -> Table:
+    t = Table(name=name, seats=seats, active=active, section=section, sort=sort)
     db.add(t)
     db.commit()
     db.refresh(t)
     return t
 
 
-def update_table(db: Session, tid: int, *, name: str | None, seats: int | None, active: bool | None) -> Table | None:
+def update_table(db: Session, tid: int, *, name: str | None, seats: int | None, active: bool | None, section: str | None = None, sort: int | None = None) -> Table | None:
     t = db.get(Table, tid)
     if not t:
         return None
@@ -204,6 +204,10 @@ def update_table(db: Session, tid: int, *, name: str | None, seats: int | None, 
         t.seats = seats
     if active is not None:
         t.active = active
+    if section is not None:
+        t.section = section
+    if sort is not None:
+        t.sort = sort
     db.commit()
     db.refresh(t)
     return t

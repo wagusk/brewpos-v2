@@ -1,42 +1,107 @@
 /**
- * MenuGrid — product grid + category filter for the waiter page.
- * Shows all products filtered by selected category. Click adds to cart.
+ * MenuGrid — category filter + search + product grid for the POS.
+ *
+ * All data is loaded dynamically from /api/menu. Nothing is hardcoded.
+ * Products are shown based on the active category AND a free-text
+ * search across name and description. Clicking a product opens the
+ * modifier dialog (or adds directly if no modifier groups exist).
  */
 
-import { Box, Typography, Grid, Card, CardContent, Chip } from '@mui/material';
-import { Restaurant, LocalBar } from '@mui/icons-material';
+import { useMemo } from 'react';
+import { POSCard, POSChip, POSTextField, POSIcon } from '../../../components';
+import {
+  Restaurant, LocalBar, Search, ImageNotSupported,
+  LocalCafe, BakeryDining, LunchDining, Icecream, RestaurantMenu,
+} from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  category_id: number;
-  kind?: string;
-}
+import type { ProductWithMods } from './ModifierDialog';
 
 interface Category {
   id: number;
   name: string;
+  icon?: string;
+  color?: string;
   kind?: string;
+  sort?: number;
+}
+
+// Backend category.icon (Material Symbols-style name) → MUI icon.
+// Unknown names fall back to a kind-aware default.
+const ICON_BY_NAME: Record<string, typeof Restaurant> = {
+  local_cafe: LocalCafe,
+  bakery_dining: BakeryDining,
+  lunch_dining: LunchDining,
+  local_bar: LocalBar,
+  icecream: Icecream,
+  restaurant_menu: RestaurantMenu,
+  emoji_food_beverage: LocalBar,
+};
+
+function CategoryIcon({ name, kind }: { name?: string; kind?: string }) {
+  if (name && ICON_BY_NAME[name]) {
+    const I = ICON_BY_NAME[name];
+    return <POSIcon icon={<I />} size="sm" />;
+  }
+  return kind === 'bar'
+    ? <POSIcon icon={<LocalBar />} size="sm" />
+    : <POSIcon icon={<Restaurant />} size="sm" />;
 }
 
 interface Props {
   categories: Category[];
-  products: Product[];
+  products: ProductWithMods[];
   selectedCategory: number | null;
+  search: string;
+  onSearchChange: (v: string) => void;
   onSelectCategory: (id: number | null) => void;
-  onAddToCart: (product: Product) => void;
+  onProductClick: (product: ProductWithMods) => void;
 }
 
 const STATION_LABELS: Record<string, string> = { kitchen: 'Kitchen', bar: 'Bar', both: 'Both' };
 
-export default function MenuGrid({ categories, products, selectedCategory, onSelectCategory, onAddToCart }: Props) {
+export default function MenuGrid({
+  categories, products, selectedCategory, search,
+  onSearchChange, onSelectCategory, onProductClick,
+}: Props) {
   const c = useTheme();
 
-  const filteredProducts = selectedCategory
-    ? products.filter(p => p.category_id === selectedCategory)
-    : products;
+  // Sort categories by configured sort, then id (stable fallback).
+  const sortedCategories = useMemo(
+    () => [...categories].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.id - b.id),
+    [categories],
+  );
+
+  // Color resolver — use backend-configured color when present, fall back
+  // to kind-based station token, fall back to default c.button.
+  const categoryColor = (cat: Category): string => {
+    if (cat.color && /^#[0-9a-fA-F]{3,8}$/.test(cat.color)) return cat.color;
+    if (cat.kind === 'bar') return c.stationBar;
+    if (cat.kind === 'both') return c.stationBoth;
+    if (cat.kind === 'kitchen') return c.stationKitchen;
+    return c.button;
+  };
+
+  // Build a category-id → name lookup so search can match by category too.
+  const categoryNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const cat of sortedCategories) m.set(cat.id, cat.name);
+    return m;
+  }, [sortedCategories]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter(p => {
+      if (!p.active) return false;
+      if (selectedCategory !== null && p.category_id !== selectedCategory) return false;
+      if (q) {
+        const inName = p.name.toLowerCase().includes(q);
+        const inDesc = (p.description || '').toLowerCase().includes(q);
+        const inCat = (categoryNameById.get(p.category_id) || '').toLowerCase().includes(q);
+        if (!inName && !inDesc && !inCat) return false;
+      }
+      return true;
+    });
+  }, [products, selectedCategory, search, categoryNameById]);
 
   const stationColor = (kind: string) => {
     if (kind === 'bar') return c.stationBar;
@@ -45,51 +110,122 @@ export default function MenuGrid({ categories, products, selectedCategory, onSel
   };
 
   return (
-    <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-      <Typography sx={{ fontWeight: 700, mb: 2, fontSize: c.fontSize('h5'), color: c.text }}>Menu</Typography>
-      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
-        <Chip label="All" onClick={() => onSelectCategory(null)} color={selectedCategory === null ? 'primary' : 'default'} sx={{ fontWeight: 700, fontSize: c.fontSize('body1'), height: 40 }} />
-        {categories.map(cat => (
-          <Chip key={cat.id} label={cat.name} onClick={() => onSelectCategory(cat.id)} color={selectedCategory === cat.id ? 'primary' : 'default'} icon={cat.kind === 'bar' ? <LocalBar fontSize="small" /> : <Restaurant fontSize="small" />} sx={{ fontWeight: 700, fontSize: c.fontSize('body1'), height: 40 }} />
-        ))}
-      </Box>
+    <div style={{ flex: 1, overflow: 'auto', padding: c.ui.spacingBase * 2, display: 'flex', flexDirection: 'column' }}>
+      {/* Header row: title + search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: c.ui.spacingBase * 2, marginBottom: c.ui.spacingBase * 2, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 700, fontSize: c.fontSize('h5'), color: c.text }}>Menu</span>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <POSTextField
+            variant="search"
+            size="md"
+            placeholder="Search products..."
+            value={search}
+            onChange={(v) => onSearchChange(v)}
+            icon={<POSIcon icon={<Search />} size="sm" variant="muted" />}
+            fullWidth
+          />
+        </div>
+      </div>
 
-      <Grid container spacing={c.ui.cardGap / 8}>
-        {filteredProducts.map(product => (
-          <Grid item xs={6} sm={4} md={3} key={product.id}>
-            <Card onClick={() => onAddToCart(product)} sx={{
-              cursor: 'pointer',
-              bgcolor: c.card, border: '1px solid ' + c.cardBorder,
-              borderRadius: c.ui.cardRadius + 'px',
-              boxShadow: 'none',
-              minHeight: 130,
-              '&:hover': { bgcolor: c.cardHover, borderColor: c.button },
-              '&:active': { bgcolor: c.chipActive, borderColor: c.button },
-            }}>
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Typography sx={{ fontWeight: 700, mb: 0.5, fontSize: c.fontSize('body1'), color: c.text }}>
-                  {product.name}
-                </Typography>
-                <Typography sx={{ display: 'block', mb: 1, fontSize: c.fontSize('subtitle2'), color: c.subtext, fontWeight: 600 }}>
-                  {'$' + product.price.toFixed(2)}
-                </Typography>
-                <Chip
-                  size="small"
-                  label={STATION_LABELS[product.kind || ''] || 'Kitchen'}
-                  sx={{
-                    height: 24,
-                    fontSize: c.fontSize('caption'),
-                    bgcolor: stationColor(product.kind || 'kitchen'),
-                    color: c.buttonText,
-                    borderRadius: c.ui.inputRadius + 'px',
-                    fontWeight: 600,
+      {/* Category filter chips */}
+      <div style={{ display: 'flex', gap: c.ui.spacingBase * 1.5, flexWrap: 'wrap', marginBottom: c.ui.spacingBase * 2 }}>
+        <POSChip
+          variant="default"
+          selected={selectedCategory === null}
+          onClick={() => onSelectCategory(null)}
+          size="md"
+          style={
+            selectedCategory === null
+              ? { backgroundColor: c.stationBoth, color: c.buttonText }
+              : {}
+          }
+        >
+          All
+        </POSChip>
+        {sortedCategories.map(cat => (
+          <POSChip
+            key={cat.id}
+            variant="default"
+            selected={selectedCategory === cat.id}
+            onClick={() => onSelectCategory(cat.id)}
+            icon={<CategoryIcon name={cat.icon} kind={cat.kind} />}
+            size="md"
+            style={
+              selectedCategory === cat.id
+                ? { backgroundColor: categoryColor(cat), color: c.buttonText }
+                : {}
+            }
+          >
+            {cat.name}
+          </POSChip>
+        ))}
+      </div>
+
+      {/* Product grid */}
+      {filtered.length === 0 ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: c.subtext, padding: c.ui.spacingBase * 6 }}>
+          <POSIcon icon={<ImageNotSupported />} size="lg" variant="muted" style={{ opacity: 0.4, marginBottom: c.ui.spacingBase }} />
+          <span style={{ fontSize: c.fontSize('body1') }}>No products match the current filter</span>
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(auto-fill, minmax(${c.ui.minTouchTarget * 4}px, 1fr))`,
+          gap: `${c.ui.cardGap}px`,
+        }}>
+          {filtered.map(product => (
+            <POSCard
+              key={product.id}
+              clickable
+              onClick={() => onProductClick(product)}
+              variant="default"
+              padding={0}
+              style={{
+                minHeight: c.ui.minTouchTarget * 3,
+                overflow: 'hidden',
+              }}
+            >
+              {product.image ? (
+                <div
+                  style={{
+                    width: '100%',
+                    height: c.ui.minTouchTarget * 2,
+                    backgroundImage: `url(${product.image})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    borderBottom: `1px solid ${c.cardBorder}`,
                   }}
                 />
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
+              ) : null}
+              <div style={{ padding: c.ui.spacingBase * 2, flex: 1 }}>
+                <span style={{ fontWeight: 700, marginBottom: c.ui.spacingBase * 0.5, fontSize: c.fontSize('body1'), color: c.text, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {product.name}
+                </span>
+                <span style={{ display: 'block', marginBottom: c.ui.spacingBase, fontSize: c.fontSize('body2'), color: c.subtext, fontWeight: 600 }}>
+                  ${product.price.toFixed(2)}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: c.ui.spacingBase * 0.75, flexWrap: 'wrap' }}>
+                  <POSChip
+                    variant="station"
+                    stationType={(product.kind || 'kitchen') as 'kitchen' | 'bar' | 'both'}
+                    size="sm"
+                  >
+                    {STATION_LABELS[product.kind || ''] || 'Kitchen'}
+                  </POSChip>
+                  {product.modifier_groups.length > 0 && (
+                    <POSChip
+                      variant="default"
+                      size="sm"
+                    >
+                      {product.modifier_groups.length + ' opt'}
+                    </POSChip>
+                  )}
+                </div>
+              </div>
+            </POSCard>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

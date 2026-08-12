@@ -1,12 +1,16 @@
+/**
+ * VoidPage — void paid bills with required reason.
+ * Uses POSCard, POSButton, POSChip, POSTextField, POSIcon.
+ */
+
 import { useState, useEffect } from 'react';
-import {
-  Box, Typography, Paper, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField,
-  Button, IconButton, Chip, Alert, Snackbar, Dialog,
-  DialogTitle, DialogContent, DialogActions,
-} from '@mui/material';
-import { Delete, Block } from '@mui/icons-material';
+import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSButton, POSChip, POSTextField, POSIcon } from '../../components';
+import { Delete, Block, Warning } from '@mui/icons-material';
 import { api } from '../../core/api';
+import { useNotifications, Toasts } from '../../shared/notifications/useNotifications';
+import ConfirmDialog from '../../shared/dialog/ConfirmDialog';
+import EmptyState from '../../shared/states/EmptyState';
 
 interface Bill {
   order_id: number;
@@ -25,24 +29,20 @@ interface Bill {
 
 export default function VoidPage() {
   const [bills, setBills] = useState<Bill[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const c = useTheme();
+  const notifications = useNotifications();
 
-  useEffect(() => {
-    loadBills();
-  }, []);
+  useEffect(() => { loadBills(); }, []);
 
   const loadBills = async () => {
     try {
       const data = await api.getBillHistory('?period=all&limit=100');
       setBills(data.filter((b: Bill) => b.status === 'paid' || b.status === 'void'));
-    } catch (e: any) {
-      setError(e.message);
-    }
+    } catch (e: any) { notifications.error(e.message); }
   };
 
   const openVoidDialog = (bill: Bill) => {
@@ -52,132 +52,120 @@ export default function VoidPage() {
     setDialogOpen(true);
   };
 
-  const closeDialog = () => {
-    setDialogOpen(false);
-    setSelectedBill(null);
-    setVoidReason('');
-  };
-
   const handleVoid = async () => {
     if (!selectedBill || !voidReason.trim()) return;
     setLoading(true);
     try {
       await api.voidOrder(selectedBill.order_id, { reason: voidReason });
-      setSuccess(`Bill #${selectedBill.order_number} voided`);
-      closeDialog();
+      notifications.success(`Bill #${selectedBill.order_number} voided`);
+      setDialogOpen(false);
+      setSelectedBill(null);
+      setVoidReason('');
       loadBills();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { notifications.error(e.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <Box sx={{ p: 2, height: '100%', overflow: 'auto' }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Block /> Void Bills
-      </Typography>
+    <div style={{ padding: `${c.ui.cardGap}px`, height: '100%', overflow: 'auto' }}>
+      {/* Header */}
+      <POSCard variant="default" padding="md" style={{
+        display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`,
+        marginBottom: `${c.ui.cardGap}px`,
+      }}>
+        <POSIcon icon={<Block />} size="md" />
+        <span style={{ fontSize: c.fontSize('h4'), fontWeight: 700, color: c.text }}>Void Bills</span>
+      </POSCard>
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        Voiding a bill removes it from all reports and displays. This action cannot be undone.
-      </Alert>
+      {/* Warning */}
+      <POSCard variant="outlined" padding="md" style={{
+        display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`,
+        marginBottom: `${c.ui.cardGap}px`,
+        borderColor: c.warning,
+        backgroundColor: c.warningLight,
+      }}>
+        <POSIcon icon={<Warning />} size="md" variant="warning" />
+        <span style={{ fontSize: c.fontSize('body2'), color: c.warningDark }}>
+          Voiding a bill removes it from all reports and displays. This action cannot be undone.
+        </span>
+      </POSCard>
 
+      {/* Bills list */}
       {bills.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary">No bills available</Typography>
-        </Paper>
+        <EmptyState title="No bills available" subtitle="Paid bills will appear here" />
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Bill #</TableCell>
-                <TableCell>Table</TableCell>
-                <TableCell>Customer</TableCell>
-                <TableCell>Total</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Method</TableCell>
-                <TableCell>Time</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {bills.map(bill => (
-                <TableRow key={bill.order_id} sx={{
-                  opacity: bill.status === 'void' ? 0.5 : 1,
-                  textDecoration: bill.status === 'void' ? 'line-through' : 'none',
-                }}>
-                  <TableCell>#{bill.order_number}</TableCell>
-                  <TableCell>{bill.table_name || 'Takeaway'}</TableCell>
-                  <TableCell>{bill.customer_name || '—'}</TableCell>
-                  <TableCell>${bill.total.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={bill.status}
-                      color={bill.status === 'void' ? 'default' : 'success'}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" label={bill.payment_method || 'N/A'} />
-                  </TableCell>
-                  <TableCell>{new Date(bill.created_at).toLocaleTimeString()}</TableCell>
-                  <TableCell align="right">
-                    {bill.status === 'paid' && (
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => openVoidDialog(bill)}
-                      >
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+          {bills.map(bill => (
+            <POSCard
+              key={bill.order_id}
+              variant="default"
+              padding="md"
+              style={{
+                opacity: bill.status === 'void' ? 0.5 : 1,
+                textDecoration: bill.status === 'void' ? 'line-through' : 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${c.ui.spacingBase}px` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text }}>
+                    #{bill.order_number}
+                  </span>
+                  <POSChip variant="default" size="sm">
+                    {bill.table_name || 'Takeaway'}
+                  </POSChip>
+                  <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+                    {bill.customer_name || '—'}
+                  </span>
+                  <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}>
+                    ${bill.total.toFixed(2)}
+                  </span>
+                  <POSChip variant="status" size="sm" status={bill.status === 'void' ? 'void' : 'ready'}>
+                    {bill.status}
+                  </POSChip>
+                  {bill.payment_method && (
+                    <POSChip variant="payment" size="sm" paymentType={bill.payment_method as any}>
+                      {bill.payment_method}
+                    </POSChip>
+                  )}
+                  <span style={{ fontSize: c.fontSize('caption'), color: c.muted }}>
+                    {new Date(bill.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+                {bill.status === 'paid' && (
+                  <POSButton variant="danger" size="sm" icon={<Delete />} onClick={() => openVoidDialog(bill)}>
+                    Void
+                  </POSButton>
+                )}
+              </div>
+            </POSCard>
+          ))}
+        </div>
       )}
 
       {/* Void Confirmation Dialog */}
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>Void Bill #{selectedBill?.order_number}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Alert severity="error">
-              This will permanently void the bill. The order will be excluded from all reports.
-            </Alert>
-            <TextField
-              label="Reason (required)"
-              value={voidReason}
-              onChange={e => setVoidReason(e.target.value)}
-              size="small"
-              fullWidth
-              autoFocus
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDialog}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleVoid}
-            disabled={loading || !voidReason.trim()}
-          >
-            Void Bill
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={dialogOpen}
+        title={`Void Bill #${selectedBill?.order_number}`}
+        message="This will permanently void the bill. The order will be excluded from all reports."
+        confirmLabel="Void Bill"
+        destructive
+        onConfirm={handleVoid}
+        onCancel={() => { setDialogOpen(false); setSelectedBill(null); setVoidReason(''); }}
+      />
+      {dialogOpen && (
+        <div style={{ padding: `0 ${c.ui.cardGap}px ${c.ui.cardGap}px` }}>
+          <POSTextField
+            label="Reason (required)"
+            placeholder="Enter reason for voiding"
+            value={voidReason}
+            onChange={setVoidReason}
+            fullWidth
+            autoFocus
+          />
+        </div>
+      )}
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
-      </Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>
-      </Snackbar>
-    </Box>
+      <Toasts controller={notifications} />
+    </div>
   );
 }

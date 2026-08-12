@@ -18,6 +18,7 @@ import {
   Settings as SettingsIcon,
   Percent as PercentIcon,
   Cancel as CancelIcon,
+  TableRestaurant as TableRestaurantIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MODULES } from '../app/moduleRegistry';
@@ -34,6 +35,7 @@ const ICONS: Record<string, React.ReactNode> = {
   Settings: <SettingsIcon fontSize="small" />,
   Percent: <PercentIcon fontSize="small" />,
   Cancel: <CancelIcon fontSize="small" />,
+  TableRestaurant: <TableRestaurantIcon fontSize="small" />,
 };
 
 export default function Shell({ children, title = 'Brew-POS v2' }: { children: React.ReactNode; title?: string }) {
@@ -97,12 +99,12 @@ export default function Shell({ children, title = 'Brew-POS v2' }: { children: R
                   height: c.ui.bottomBarHeight - 12 + 'px',
                   borderRadius: c.ui.inputRadius + 'px',
                   cursor: 'pointer',
-                  bgcolor: isActive ? c.chipActive : 'transparent',
-                  color: isActive ? c.chipActiveText : c.muted,
-                  border: isActive ? '1px solid ' + c.chipBorder : '1px solid transparent',
+                  bgcolor: isActive ? c.button : c.input,
+                  color: isActive ? c.buttonText : c.text,
+                  border: `1px solid ${isActive ? c.button : c.cardBorder}`,
                   '&:hover': {
-                    bgcolor: isActive ? c.buttonHover : c.chip,
-                    borderColor: c.chipBorder,
+                    bgcolor: isActive ? c.buttonHover : c.cardHover,
+                    borderColor: c.cardBorder,
                     color: c.text,
                   },
                   backgroundImage: 'none',

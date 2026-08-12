@@ -3,22 +3,21 @@
  * Connects to backend at configured API_URL
  *
  * API_URL resolution order:
- *   1. localStorage('brewpos_api_url') if set (manual override)
- *   2. Same hostname the page is loaded from, port 8000
- *      (works for localhost, Tailscale, LAN IPs, public hostnames)
- *   3. Fallback to 'http://localhost:8000' for tests
+ * 1. localStorage('brewpos_api_url') if set (manual override)
+ * 2. Same hostname the page is loaded from, port 8000
+  * (dev Vite proxy targets :8000, production backend runs :8000)
+ * 3. Fallback to 'http://localhost:8000' for tests
  */
-
 function resolveApiUrl(): string {
-  try {
-    const stored = localStorage.getItem('brewpos_api_url');
-    if (stored) return stored;
-  } catch {}
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
-  }
-  return 'http://localhost:8000';
+ try {
+ const stored = localStorage.getItem('brewpos_api_url');
+ if (stored) return stored;
+ } catch {}
+ if (typeof window !== 'undefined' && window.location?.hostname) {
+ const { protocol, hostname } = window.location;
+ return `${protocol}//${hostname}:8000`;
+ }
+ return 'http://localhost:8000';
 }
 
 const API_URL = resolveApiUrl();
@@ -86,6 +85,7 @@ export const api = {
   // Menu
   getMenu: () => apiGet('/api/menu'),
   getTables: () => apiGet('/api/tables'),
+  getTableSections: () => apiGet('/api/table-sections'),
 
   // Orders
   getOrders: () => apiGet('/api/orders'),
@@ -153,6 +153,14 @@ export const api = {
 
   // Modules
   getModules: () => apiGet('/api/modules'),
+
+  // M35 - Payment processing
+  initiatePayment: (data: any) => apiPost('/api/payments/initiate', data),
+  confirmPayment: (paymentId: number) => apiPost('/api/payments/confirm', { payment_id: paymentId, action: 'confirm' }),
+  retryPayment: (paymentId: number) => apiPost('/api/payments/retry', { payment_id: paymentId, action: 'retry' }),
+  cancelPayment: (paymentId: number) => apiPost('/api/payments/cancel', { payment_id: paymentId, action: 'cancel' }),
+  getPayment: (paymentId: number) => apiGet(`/api/payments/${paymentId}`),
+  listOrderPayments: (orderId: number) => apiGet(`/api/payments/order/${orderId}`),
 
   // Misc
   health: () => apiGet('/health'),

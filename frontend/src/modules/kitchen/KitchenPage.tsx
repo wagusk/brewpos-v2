@@ -1,46 +1,63 @@
 /**
  * KitchenPage — kitchen station display.
+ * Real-time updates via WebSocket, fallback polling every 30s if disconnected.
  *
+ * Uses POSCard, POSChip, POSIcon for header and status.
  * Sub-module: orderlist/OrderList renders the order cards.
  */
 
 import { useState, useEffect } from 'react';
-import { Box, Typography, Alert, Snackbar } from '@mui/material';
-import { SoupKitchen } from '@mui/icons-material';
-import { api } from '../../core/api';
+import { useSelector } from 'react-redux';
 import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSChip, POSIcon } from '../../components';
+import { SoupKitchen, Wifi, WifiOff } from '@mui/icons-material';
+import { api } from '../../core/api';
+import { isWebSocketConnected, onWebSocketMessage } from '../../core/ws';
+import { RootState } from '../../core/store';
 import OrderList from '../../shared/orderlist/OrderList';
+import { useNotifications, Toasts } from '../../shared/notifications/useNotifications';
 
 export default function KitchenPage() {
-  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const c = useTheme();
+  const notifications = useNotifications();
+  const orders = useSelector((state: RootState) => {
+    const allOrders = Object.values(state.orders.orders);
+    return allOrders.filter((o: any) => ['open', 'accepted', 'preparing', 'ready'].includes(o.status));
+  });
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 5000);
-    return () => clearInterval(interval);
+    const unsubscribe = onWebSocketMessage((event, data) => {
+      if (event === 'ws_connected') {
+        setWsConnected(true);
+        loadOrders();
+      } else if (event === 'ws_disconnected') {
+        setWsConnected(false);
+      } else if (event === 'order_created' || event === 'order_updated' || event === 'order_accepted') {
+        loadOrders();
+      }
+    });
+    const pollInterval = setInterval(() => {
+      if (!wsConnected) loadOrders();
+    }, 30000);
+    setWsConnected(isWebSocketConnected());
+    return () => { unsubscribe(); clearInterval(pollInterval); };
   }, []);
 
   const loadOrders = async () => {
-    try {
-      const data = await api.listOrders();
-      setOrders(data.filter((o: any) => ['open', 'accepted', 'preparing', 'ready'].includes(o.status)));
-    } catch (e: any) {
-      console.error('Failed to load orders', e);
-    }
+    try { await api.listOrders(); } catch { /* ignore */ }
   };
 
   const acceptOrder = async (orderId: number) => {
     setLoading(true);
     try {
       await api.acceptOrder(orderId);
-      setSuccess('Order accepted');
+      notifications.success('Order accepted');
       loadOrders();
     } catch (e: any) {
-      setError(e.message);
+      notifications.error(e.message);
     } finally {
       setLoading(false);
     }
@@ -52,26 +69,33 @@ export default function KitchenPage() {
       await api.updateOrder(orderId, { item_id: itemId, item_status: newStatus });
       loadOrders();
     } catch (e: any) {
-      setError(e.message);
+      notifications.error(e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ p: 2, height: '100%', overflow: 'auto', bgcolor: c.page }}>
-      <Typography sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 2, fontSize: c.fontSize('h5'), color: c.text }}>
-        <SoupKitchen /> Kitchen Display
-      </Typography>
+    <div style={{ padding: `${c.ui.cardGap}px`, height: '100%', overflow: 'auto', backgroundColor: c.page }}>
+      <POSCard variant="default" padding="md" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: `${c.ui.cardGap}px`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px` }}>
+          <POSIcon icon={<SoupKitchen />} size="md" />
+          <span style={{ fontWeight: 700, fontSize: c.fontSize('h5'), color: c.text }}>
+            Kitchen Display
+          </span>
+        </div>
+        <POSChip variant={wsConnected ? 'status' : 'status'} size="sm" status={wsConnected ? 'ready' : 'pending'}>
+          <POSIcon icon={wsConnected ? <Wifi /> : <WifiOff />} size="sm" />
+          {wsConnected ? 'Connected' : 'Disconnected'}
+        </POSChip>
+      </POSCard>
 
       <OrderList orders={orders} loading={loading} station="kitchen" onAccept={acceptOrder} onMarkItemStatus={markItemStatus} />
 
-      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError(null)}>
-        <Alert severity="error" onClose={() => setError(null)} sx={{ bgcolor: c.errorBg, color: c.errorText, border: '1px solid ' + c.errorBorder }}>{error}</Alert>
-      </Snackbar>
-      <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess(null)}>
-        <Alert severity="success" onClose={() => setSuccess(null)} sx={{ bgcolor: c.chip, color: c.text, border: '1px solid ' + c.cardBorder }}>{success}</Alert>
-      </Snackbar>
-    </Box>
+      <Toasts controller={notifications} />
+    </div>
   );
 }

@@ -1,10 +1,16 @@
+/**
+ * LoginPage — PIN pad authentication.
+ * Uses POSCard, POSButton, POSIcon for all rendering.
+ * All styling driven by theme tokens.
+ */
+
 import { useState } from 'react';
-import { Box, Button, Typography, Paper, Alert } from '@mui/material';
-import CoffeeIcon from '@mui/icons-material/Coffee';
-import BackspaceIcon from '@mui/icons-material/Backspace';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../core/api';
 import { useTheme } from '../../core/theme/monoTheme';
+import { POSCard, POSButton, POSIcon } from '../../components';
+import CoffeeIcon from '@mui/icons-material/Coffee';
+import BackspaceIcon from '@mui/icons-material/Backspace';
 
 export default function LoginPage() {
   const [pin, setPin] = useState('');
@@ -15,7 +21,7 @@ export default function LoginPage() {
 
   const tap = (n: string) => {
     setError(null);
-    if (pin.length >= 6) return;
+    if (pin.length >= 8) return;
     setPin((p) => p + n);
   };
 
@@ -29,7 +35,7 @@ export default function LoginPage() {
       const r = await api.login(pin);
       localStorage.setItem('brewpos_token', r.access_token);
       localStorage.setItem('brewpos_user', JSON.stringify(r.user));
-      nav('/pos');
+      nav('/tables');
     } catch (e: any) {
       setError(e?.message || 'Login failed');
       setPin('');
@@ -41,111 +47,126 @@ export default function LoginPage() {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'enter'];
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: c.page, p: 2 }}>
-      <Paper sx={{
-        p: 4, width: '100%', maxWidth: 420,
-        borderRadius: `${c.ui.cardRadius}px`,
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-        gap: 2.5, bgcolor: c.card, border: `1px solid ${c.cardBorder}`,
-        boxShadow: c.ui.cardShadow,
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{
+    <div style={{
+      height: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.page,
+      padding: `${c.ui.spacingBase * 2}px`,
+    }}>
+      <POSCard
+        variant="elevated"
+        elevation="lg"
+        padding="lg"
+        style={{ width: '100%', maxWidth: 420 }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap}px` }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.cardGap}px` }}>
+            <div style={{
               width: 44, height: 44,
               borderRadius: `${c.ui.inputRadius}px`,
-              bgcolor: c.button, color: c.buttonText,
+              backgroundColor: c.button,
+              color: c.buttonText,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <CoffeeIcon sx={{ fontSize: `${c.ui.iconSize}rem` }} />
-           </Box>
-            <Box>
-              <Typography sx={{ fontWeight: 700, lineHeight: 1.1, color: c.text, fontSize: c.fontSize('h5') }}>Brew-POS v2</Typography>
-              <Typography sx={{ color: c.subtext, fontSize: c.fontSize('caption') }}>Sign in to your terminal</Typography>
-           </Box>
-         </Box>
-       </Box>
+              <POSIcon icon={<CoffeeIcon />} size="md" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, lineHeight: 1.1, color: c.text, fontSize: c.fontSize('h5') }}>
+                Brew-POS v2
+              </div>
+              <div style={{ color: c.subtext, fontSize: c.fontSize('caption') }}>
+                Sign in to your terminal
+              </div>
+            </div>
+          </div>
 
-        <Box sx={{
-          width: '100%', py: 2, textAlign: 'center',
-          letterSpacing: 8, fontSize: '1.75rem', fontWeight: 700,
-          minHeight: 64,
-          borderRadius: `${c.ui.buttonRadius}px`,
-          border: `1px solid ${c.inputBorder}`, bgcolor: c.input, color: c.inputText,
-        }}>
-          {pin ? '•'.repeat(pin.length) : '—'}
-       </Box>
-
-        {error && (
-          <Alert severity="error" sx={{
+          {/* PIN display */}
+          <div style={{
             width: '100%',
-            bgcolor: c.errorBg, border: `1px solid ${c.errorBorder}`, color: c.errorText,
-            borderRadius: `${c.ui.inputRadius}px`,
+            paddingTop: `${c.ui.cardPadding}px`,
+            paddingBottom: `${c.ui.cardPadding}px`,
+            textAlign: 'center',
+            letterSpacing: '8px',
+            fontSize: '1.75rem',
+            fontWeight: 700,
+            minHeight: `${c.ui.cardMinHeight}px`,
+            borderRadius: `${c.ui.buttonRadius}px`,
+            border: `1px solid ${c.inputBorder}`,
+            backgroundColor: c.input,
+            color: c.inputText,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            {error}
-         </Alert>
-        )}
+            {pin ? '•'.repeat(pin.length) : '—'}
+          </div>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, width: '100%' }}>
-          {keys.map((k) => {
-            if (k === 'clear') {
+          {/* Error */}
+          {error && (
+            <div style={{
+              width: '100%',
+              padding: `${c.ui.spacingBase}px`,
+              borderRadius: `${c.ui.inputRadius}px`,
+              border: `1px solid ${c.errorBorder}`,
+              backgroundColor: c.errorBg,
+              color: c.errorText,
+              fontSize: c.fontSize('body2'),
+              textAlign: 'center',
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Keypad grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: `${c.ui.cardGap}px`,
+            width: '100%',
+          }}>
+            {keys.map((k) => {
+              if (k === 'clear') {
+                return (
+                  <POSButton key={k} variant="outline" size="lg" onClick={() => setPin('')}>
+                    Clear
+                  </POSButton>
+                );
+              }
+              if (k === 'enter') {
+                return (
+                  <POSButton
+                    key={k}
+                    variant="primary"
+                    size="lg"
+                    onClick={submit}
+                    disabled={loading || pin.length < 3}
+                    loading={loading}
+                  >
+                    Enter
+                  </POSButton>
+                );
+              }
               return (
-                <Button key={k} variant="outlined" onClick={() => setPin('')} sx={{
-                  minHeight: c.ui.buttonMinHeight,
-                  fontSize: c.fontSize('body1'), fontWeight: 700,
-                  borderRadius: `${c.ui.buttonRadius}px`,
-                  borderColor: c.buttonBorder, color: c.warning,
-                  backgroundImage: 'none', boxShadow: 'none',
-                  '&:hover': { borderColor: c.buttonHover, bgcolor: c.chip, backgroundImage: 'none' },
-                }}>
-                  Clear
-               </Button>
+                <POSButton key={k} variant="secondary" size="lg" onClick={() => tap(k)}>
+                  {k}
+                </POSButton>
               );
-            }
-            if (k === 'enter') {
-              return (
-                <Button key={k} variant="contained" onClick={submit} disabled={loading || pin.length < 3} sx={{
-                  minHeight: c.ui.buttonMinHeight,
-                  fontSize: c.fontSize('body1'), fontWeight: 700,
-                  borderRadius: `${c.ui.buttonRadius}px`,
-                  bgcolor: c.button, color: c.buttonText,
-                  boxShadow: 'none', backgroundImage: 'none',
-                  '&:hover': { bgcolor: c.buttonHover, backgroundImage: 'none', boxShadow: 'none' },
-                  '&.Mui-disabled': { bgcolor: c.chip, color: c.muted, backgroundImage: 'none' },
-                  '&:active': { boxShadow: 'none' },
-                }}>
-                  Enter
-               </Button>
-              );
-            }
-            return (
-              <Button key={k} variant="outlined" onClick={() => tap(k)} sx={{
-                minHeight: c.ui.buttonMinHeight,
-                fontSize: c.fontSize('h5'), fontWeight: 700,
-                borderRadius: `${c.ui.buttonRadius}px`,
-                bgcolor: c.input, borderColor: c.inputBorder, color: c.inputText,
-                backgroundImage: 'none',
-                '&:hover': { bgcolor: c.chip, borderColor: c.buttonBorder, backgroundImage: 'none' },
-              }}>
-                {k}
-             </Button>
-            );
-          })}
-       </Box>
+            })}
+          </div>
 
-        <Button startIcon={<BackspaceIcon />} onClick={back} sx={{
-          minHeight: 40,
-          color: c.subtext, alignSelf: 'center',
-          fontSize: c.fontSize('body2'),
-          '&:hover': { color: c.text, backgroundImage: 'none' },
-        }}>
-          Backspace
-       </Button>
+          {/* Backspace */}
+          <POSButton variant="ghost" size="sm" icon={<BackspaceIcon />} onClick={back}
+            style={{ alignSelf: 'center' }}>
+            Backspace
+          </POSButton>
 
-        <Typography sx={{ textAlign: 'center', color: c.muted, fontSize: c.fontSize('caption') }}>
-          Demo: admin 9999 · cashier 1111 · waiter 2222 · kitchen 3333
-       </Typography>
-     </Paper>
-   </Box>
+          {/* Help text */}
+          <div style={{ textAlign: 'center', color: c.muted, fontSize: c.fontSize('caption'), marginTop: `${c.ui.spacingBase}px` }}>
+            Demo: admin 9999 · cashier 1111 · waiter 2222 · kitchen 3333
+          </div>
+        </div>
+      </POSCard>
+    </div>
   );
 }

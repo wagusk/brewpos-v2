@@ -3,40 +3,52 @@
  * Slider values are read/written through useCashierLayout (localStorage).
  */
 
-import { Box, Typography, Paper, Button, Stack } from '@mui/material';
 import { RestartAlt } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
 import { useCashierLayout, CASHIER_LAYOUT_DEFAULTS } from '../../cashier/layoutConfig';
 import LayoutSlider from './LayoutSlider';
+import POSCard from '../../../components/POSCard';
+import POSButton from '../../../components/POSButton';
+import POSIcon from '../../../components/POSIcon';
 
 export default function CashierLayoutTab() {
   const c = useTheme();
   const { config, setLayout, reset } = useCashierLayout();
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 600 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Cashier Layout</Typography>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<RestartAlt />}
+    <POSCard variant="outlined" padding="lg" style={{ maxWidth: 600 }}>
+      {/* Header row */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: c.ui.cardGap,
+      }}>
+        <h2 style={{
+          fontSize: c.fontSize('h6'), fontWeight: 600,
+          color: c.text, margin: 0,
+        }}>
+          Cashier Layout
+        </h2>
+        <POSButton
+          variant="outline"
+          size="sm"
+          icon={<POSIcon icon={<RestartAlt />} size="sm" variant="default" />}
+          iconPosition="left"
           onClick={reset}
-          sx={{
-            color: c.subtext, borderColor: c.buttonBorder, bgcolor: c.card,
-            borderRadius: c.ui.inputRadius + 'px',
-            minHeight: c.ui.minTouchTarget * 0.7,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
         >
           Reset to defaults
-    </Button>
-  </Box>
-      <Typography sx={{ color: c.subtext, fontSize: c.fontSize('body2'), mb: 2 }}>
+        </POSButton>
+      </div>
+
+      {/* Description */}
+      <p style={{
+        fontSize: c.fontSize('body2'), color: c.subtext,
+        margin: `0 0 ${c.ui.cardGap}px 0`,
+      }}>
         Changes apply live to the cashier page. Values are stored in your browser.
-  </Typography>
-      <Stack spacing={2}>
+      </p>
+
+      {/* Sliders */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: c.ui.cardGap }}>
         <LayoutSlider
           label="Bill column width (left)"
           unit="px"
@@ -82,15 +94,29 @@ export default function CashierLayoutTab() {
           step={4}
           onChange={(v) => setLayout({ headerHeight: v })}
         />
-   </Stack>
-      <Box sx={{ mt: 3, p: 2, bgcolor: c.input, border: '1px solid ' + c.inputBorder, borderRadius: c.ui.inputRadius + 'px' }}>
-        <Typography sx={{ fontSize: c.fontSize('caption'), color: c.subtext, mb: 0.5 }}>
+      </div>
+
+      {/* Defaults display */}
+      <POSCard
+        variant="outlined"
+        padding="md"
+        style={{
+          marginTop: c.ui.cardGap,
+        }}
+      >
+        <span style={{
+          fontSize: c.fontSize('caption'), color: c.subtext,
+          display: 'block', marginBottom: 4,
+        }}>
           Defaults
-     </Typography>
-        <Typography sx={{ fontSize: c.fontSize('caption'), color: c.text, fontFamily: 'monospace' }}>
+        </span>
+        <span style={{
+          fontSize: c.fontSize('caption'), color: c.text,
+          fontFamily: 'monospace',
+        }}>
           {JSON.stringify(CASHIER_LAYOUT_DEFAULTS, null, 0)}
-     </Typography>
-   </Box>
-</Paper>
+        </span>
+      </POSCard>
+    </POSCard>
   );
 }

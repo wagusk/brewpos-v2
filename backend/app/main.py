@@ -32,6 +32,7 @@ MODULE_REGISTRY: dict[str, str] = {
     "settings": "app.modules.settings.router",
     "printer": "app.modules.printer.router",
     "i18n": "app.modules.i18n.router",
+    "payment": "app.modules.payment.router",
 }
 
 ENABLED_MODULES: dict[str, bool] = {
@@ -42,6 +43,7 @@ ENABLED_MODULES: dict[str, bool] = {
     "settings": True,
     "printer": True,
     "i18n": True,
+    "payment": True,
 }
 
 
@@ -73,6 +75,39 @@ def _bootstrap_default_admin() -> None:
 
 
 Base.metadata.create_all(bind=current_engine())
+
+# M28 - additive column migrations for the Table Overview screen.
+# `Base.metadata.create_all` creates missing tables but won't ALTER
+# existing ones, so new columns on the `tables` table must be added
+# manually here. Safe to run repeatedly — each statement is wrapped
+# in try/except because the column may already exist.
+from sqlalchemy import text
+with current_engine().begin() as _migrate:
+    for _col, _ddl in (
+        ("section", "VARCHAR(40) DEFAULT 'Main Hall'"),
+        ("sort",    "INTEGER DEFAULT 0"),
+    ):
+        try:
+            _migrate.execute(text(f"ALTER TABLE tables ADD COLUMN {_col} {_ddl}"))
+        except Exception:
+            pass
+
+# M35 — additive column migrations for the Payment processing state machine.
+# New columns: status, provider, external_id, error_message, amount_validated, updated_at.
+with current_engine().begin() as _migrate:
+    for _col, _ddl in (
+        ("status",          "VARCHAR(20) DEFAULT 'pending'"),
+        ("provider",        "VARCHAR(40) DEFAULT 'mock'"),
+        ("external_id",     "VARCHAR(120) DEFAULT ''"),
+        ("error_message",   "VARCHAR(200) DEFAULT ''"),
+        ("amount_validated", "BOOLEAN DEFAULT 0"),
+        ("updated_at",      "DATETIME"),
+    ):
+        try:
+            _migrate.execute(text(f"ALTER TABLE payments ADD COLUMN {_col} {_ddl}"))
+        except Exception:
+            pass
+
 _bootstrap_default_admin()
 
 # ── App ───────────────────────────────────────────────────────────────────

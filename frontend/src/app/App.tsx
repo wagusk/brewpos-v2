@@ -1,8 +1,9 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Shell from '../components/Shell';
 import LoginPage from '../modules/auth/LoginPage';
-import POSPage from '../modules/pos/POSPage';
+import TableViewPage from '../modules/tables/TableViewPage';
+import OrderPage from '../modules/order/OrderPage';
 import KitchenPage from '../modules/kitchen/KitchenPage';
 import BarPage from '../modules/bar/BarPage';
 import AdminPage from '../modules/admin/AdminPage';
@@ -12,9 +13,12 @@ import DiscountPage from '../modules/discount/DiscountPage';
 import VoidPage from '../modules/void/VoidPage';
 import LanguagePage from '../modules/multilingual/LanguagePage';
 import { t } from '../modules/multilingual/i18n';
+import { initializeWebSocket, disconnectWebSocket } from '../core/ws';
 
 const TITLES: Record<string, string> = {
+  '/tables': t('tablesview.title'),
   '/pos': t('pos.title'),
+  '/order': t('order.title'),
   '/kitchen': t('kitchen.title'),
   '/bar': t('bar.title'),
   '/admin': t('admin.title'),
@@ -34,6 +38,18 @@ export const App = () => {
   const location = useLocation();
   const title = getTitle(location.pathname);
 
+  // Initialize WebSocket on mount
+  useEffect(() => {
+  const apiUrl = localStorage.getItem('brewpos_api_url') || `${window.location.protocol}//${window.location.hostname}:8000`;
+  initializeWebSocket(apiUrl).catch(err => {
+      console.error('[App] Failed to initialize WebSocket:', err);
+    });
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -42,8 +58,10 @@ export const App = () => {
         element={
           <Shell title={title}>
             <Routes>
-              {/* Core operations */}
-              <Route path="/pos" element={<POSPage />} />
+              {/* Core operations — Table View is the FIRST operational screen */}
+              <Route path="/tables" element={<TableViewPage />} />
+              <Route path="/order" element={<OrderPage />} />
+              <Route path="/order/:billId" element={<OrderPage />} />
               <Route path="/kitchen" element={<KitchenPage />} />
               <Route path="/bar" element={<BarPage />} />
               {/* Admin */}
@@ -54,8 +72,8 @@ export const App = () => {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/ui" element={<UISettingsPage />} />
               <Route path="/settings/language" element={<LanguagePage />} />
-              {/* Fallback */}
-              <Route path="/" element={<Navigate to="/pos" replace />} />
+              {/* Fallback — land on the table view by default */}
+              <Route path="/" element={<Navigate to="/tables" replace />} />
            </Routes>
          </Shell>
         }

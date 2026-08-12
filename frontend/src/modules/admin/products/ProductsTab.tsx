@@ -1,10 +1,11 @@
 /**
  * ProductsTab - list + edit/delete products.
+ * Uses POSCard, POSButton, POSChip, POSIcon.
  */
 
-import { Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
 import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSChip, POSIcon } from '../../../components';
+import { Add, Edit, Delete } from '@mui/icons-material';
 
 interface Props {
   products: any[];
@@ -17,46 +18,37 @@ interface Props {
 export default function ProductsTab({ products, categories, onAdd, onEdit, onDelete }: Props) {
   const c = useTheme();
   return (
-    <>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6">Products ({products.length})</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={onAdd} sx={{ minHeight: c.ui.buttonMinHeight, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${c.ui.cardGap}px` }}>
+        <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+          Products ({products.length})
+        </span>
+        <POSButton variant="primary" size="md" icon={<Add />} onClick={onAdd}>
           Add Product
-        </Button>
-      </Box>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Name</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Price</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Category</TableCell>
-              <TableCell sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Active</TableCell>
-              <TableCell align="right" sx={{ fontSize: c.fontSize('body1'), fontWeight: 700 }}>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {products.map((prod) => (
-              <TableRow key={prod.id} sx={{ '& td': { py: 1.5 } }}>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{prod.name}</TableCell>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{'$' + prod.price.toFixed(2)}</TableCell>
-                <TableCell sx={{ fontSize: c.fontSize('body1') }}>{categories.find((c) => c.id === prod.category_id)?.name}</TableCell>
-                <TableCell>
-                  <Chip size="small" label={prod.active ? 'Yes' : 'No'} color={prod.active ? 'success' : 'default'} sx={{ fontSize: c.fontSize('body2'), height: 28, fontWeight: 600 }} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton onClick={() => onEdit(prod)} sx={{ width: 48, height: 48 }}>
-                    <Edit fontSize="medium" />
-                  </IconButton>
-                  <IconButton onClick={() => onDelete(prod)} sx={{ width: 48, height: 48 }}>
-                    <Delete fontSize="medium" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </>
+        </POSButton>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+        {products.map((prod) => (
+          <POSCard key={prod.id} variant="default" padding="md">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px`, flex: 1 }}>
+                <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text }}>{prod.name}</span>
+                <span style={{ fontSize: c.fontSize('body1'), color: c.text }}>${prod.price.toFixed(2)}</span>
+                <span style={{ fontSize: c.fontSize('body2'), color: c.subtext }}>
+                  {categories.find((cat) => cat.id === prod.category_id)?.name}
+                </span>
+                <POSChip variant="status" size="sm" status={prod.active ? 'ready' : 'served'}>
+                  {prod.active ? 'Active' : 'Inactive'}
+                </POSChip>
+              </div>
+              <div style={{ display: 'flex', gap: `${c.ui.spacingBase / 2}px` }}>
+                <POSButton variant="ghost" size="sm" icon={<Edit />} onClick={() => onEdit(prod)} />
+                <POSButton variant="ghost" size="sm" icon={<Delete />} onClick={() => onDelete(prod)} />
+              </div>
+            </div>
+          </POSCard>
+        ))}
+      </div>
+    </div>
   );
 }

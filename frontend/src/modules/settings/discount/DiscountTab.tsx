@@ -1,8 +1,10 @@
 /**
  * DiscountTab — discount policy + presets.
+ * Uses POSCard, POSButton, POSTextField.
  */
 
-import { Box, Typography, TextField, Button, Paper, FormControlLabel, Switch, Stack, IconButton } from '@mui/material';
+import { useTheme } from '../../../core/theme/monoTheme';
+import { POSCard, POSButton, POSTextField, POSSelect } from '../../../components';
 import { Save, Add, Delete } from '@mui/icons-material';
 import { api } from '../../../core/api';
 
@@ -16,6 +18,8 @@ interface Props {
 }
 
 export default function DiscountTab({ discountSettings, setDiscountSettings, loading, setLoading, setSuccess, setError }: Props) {
+  const c = useTheme();
+
   const addPreset = () => {
     setDiscountSettings({
       ...discountSettings,
@@ -39,7 +43,7 @@ export default function DiscountTab({ discountSettings, setDiscountSettings, loa
     setLoading(true);
     try {
       await api.updateDiscountSettings(discountSettings);
-      setSuccess('Discount policy saved');
+      setSuccess('Discount settings saved');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -47,70 +51,78 @@ export default function DiscountTab({ discountSettings, setDiscountSettings, loa
     }
   };
 
+  const requireReasonOptions = [
+    { label: 'No', value: 'no' },
+    { label: 'Yes', value: 'yes' },
+  ];
+
+  const presetModeOptions = [
+    { label: 'Amount ($)', value: 'amount' },
+    { label: 'Percent (%)', value: 'percent' },
+  ];
+
   return (
-    <Paper sx={{ p: 3, maxWidth: 600 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Discount Policy</Typography>
-      <Stack spacing={2.5}>
-        <TextField
-          label="Max Discount (0-1)"
-          type="number"
-          inputProps={{ step: 0.05, min: 0, max: 1 }}
-          value={discountSettings.max_discount_pct || 0.5}
-          onChange={(e) => setDiscountSettings({ ...discountSettings, max_discount_pct: parseFloat(e.target.value) || 0 })}
+    <POSCard variant="default" padding="lg" style={{ maxWidth: 600 }}>
+      <span style={{ fontSize: c.fontSize('h5'), fontWeight: 700, color: c.text, display: 'block', marginBottom: `${c.ui.cardGap}px` }}>
+        Discount Configuration
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase}px` }}>
+        <POSTextField
+          label="Max Discount %"
+          value={discountSettings.max_discount_pct || ''}
+          onChange={(v: string) => setDiscountSettings({ ...discountSettings, max_discount_pct: v })}
           fullWidth
         />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={discountSettings.require_reason || false}
-              onChange={(e) => setDiscountSettings({ ...discountSettings, require_reason: e.target.checked })}
-            />
-          }
-          label="Require reason for discount"
+        <POSSelect
+          label="Require Reason"
+          value={discountSettings.require_reason ? 'yes' : 'no'}
+          onChange={(v: string) => setDiscountSettings({ ...discountSettings, require_reason: v === 'yes' })}
+          options={requireReasonOptions}
+          fullWidth
         />
-        <Box>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Presets</Typography>
-          {(discountSettings.presets || []).map((preset: any, i: number) => (
-            <Box key={i} sx={{ display: 'flex', gap: 1, mb: 1.5, alignItems: 'center' }}>
-              <TextField
+
+        <span style={{ fontSize: c.fontSize('body1'), fontWeight: 600, color: c.text, marginTop: `${c.ui.spacingBase}px` }}>
+          Presets
+        </span>
+        {(discountSettings.presets || []).map((preset: any, i: number) => (
+          <div key={i} style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <POSTextField
                 label="Label"
                 value={preset.label}
-                onChange={(e) => updatePreset(i, 'label', e.target.value)}
-                sx={{ flex: 1 }}
+                onChange={(v: string) => updatePreset(i, 'label', v)}
+                size="sm"
               />
-              <TextField
+            </div>
+            <div style={{ width: 140 }}>
+              <POSSelect
                 label="Mode"
-                select
-                SelectProps={{ native: true }}
                 value={preset.mode}
-                onChange={(e) => updatePreset(i, 'mode', e.target.value)}
-                sx={{ width: 100 }}
-              >
-                <option value="amount">$</option>
-                <option value="percent">%</option>
-              </TextField>
-              <TextField
-                label="Value"
-                type="number"
-                value={preset.value}
-                onChange={(e) => updatePreset(i, 'value', parseFloat(e.target.value) || 0)}
-                sx={{ width: 80 }}
+                onChange={(v: string) => updatePreset(i, 'mode', v)}
+                options={presetModeOptions}
+                size="sm"
               />
-              <IconButton onClick={() => removePreset(i)} sx={{ width: 48, height: 48 }}>
-                <Delete fontSize="medium" />
-              </IconButton>
-            </Box>
-          ))}
-          <Button startIcon={<Add />} onClick={addPreset} sx={{ fontWeight: 600 }}>
-            Add Preset
-          </Button>
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-          <Button variant="contained" startIcon={<Save />} onClick={save} disabled={loading} sx={{ minHeight: 48, fontWeight: 700, backgroundImage: 'none', boxShadow: 'none', '&:hover': { backgroundImage: 'none' } }}>
+            </div>
+            <div style={{ width: 120 }}>
+              <POSTextField
+                label="Value"
+                value={String(preset.value)}
+                onChange={(v: string) => updatePreset(i, 'value', v)}
+                size="sm"
+              />
+            </div>
+            <POSButton variant="ghost" size="sm" icon={<Delete />} onClick={() => removePreset(i)} />
+          </div>
+        ))}
+        <POSButton variant="outline" size="md" icon={<Add />} onClick={addPreset} style={{ alignSelf: 'flex-start' }}>
+          Add Preset
+        </POSButton>
+        <div style={{ marginTop: `${c.ui.cardGap}px` }}>
+          <POSButton variant="primary" size="md" icon={<Save />} loading={loading} onClick={save}>
             Save
-          </Button>
-        </Box>
-      </Stack>
-    </Paper>
+          </POSButton>
+        </div>
+      </div>
+    </POSCard>
   );
 }

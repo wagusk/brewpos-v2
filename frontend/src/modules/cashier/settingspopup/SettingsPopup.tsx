@@ -12,7 +12,7 @@
  */
 
 import { useState } from 'react';
-import { Box, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Paper } from '@mui/material';
+import { POSCard, POSButton, POSIcon } from '../../../components';
 import { Settings as SettingsIcon, RestartAlt, OpenInNew as OpenInNewIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../core/theme/monoTheme';
@@ -42,49 +42,41 @@ interface SliderRowProps {
 function SliderRow({ label, unit, value, min, max, step, onChange }: SliderRowProps) {
   const c = useTheme();
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Typography sx={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.spacingBase * 0.5}px` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: c.fontSize('body2'), color: c.text, fontWeight: 600 }}>
           {label}
-       </Typography>
-        <Typography sx={{ fontSize: c.fontSize('body2'), color: c.subtext, fontFamily: 'monospace' }}>
+        </span>
+        <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, fontFamily: 'monospace' }}>
           {value}{unit}
-       </Typography>
-     </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Button
-          size="small"
-          variant="outlined"
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.spacingBase}px` }}>
+        <POSButton
+          variant="outline"
+          size="sm"
           onClick={() => onChange(Math.max(min, value - step))}
-          sx={{
-            minWidth: 36, color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
+          style={{ minWidth: `${c.ui.minTouchTarget * 0.75}px`, padding: '0 8px' }}
         >
           −
-       </Button>
-        <Box sx={{ flex: 1, height: 6, bgcolor: c.input, borderRadius: 3, border: `1px solid ${c.inputBorder}`, position: 'relative' }}>
-          <Box sx={{
+        </POSButton>
+        <div style={{ flex: 1, height: '6px', backgroundColor: c.input, borderRadius: `${c.ui.inputRadius}px`, border: `1px solid ${c.inputBorder}`, position: 'relative' }}>
+          <div style={{
             position: 'absolute', left: 0, top: 0, bottom: 0,
             width: `${((value - min) / (max - min)) * 100}%`,
-            bgcolor: c.button, borderRadius: 3,
+            backgroundColor: c.button, borderRadius: `${c.ui.inputRadius}px`,
           }} />
-       </Box>
-        <Button
-          size="small"
-          variant="outlined"
+        </div>
+        <POSButton
+          variant="outline"
+          size="sm"
           onClick={() => onChange(Math.min(max, value + step))}
-          sx={{
-            minWidth: 36, color: c.text, borderColor: c.buttonBorder, bgcolor: c.card,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-          }}
+          style={{ minWidth: `${c.ui.minTouchTarget * 0.75}px`, padding: '0 8px' }}
         >
           +
-       </Button>
-     </Box>
-   </Box>
+        </POSButton>
+      </div>
+    </div>
   );
 }
 
@@ -100,148 +92,167 @@ export default function CashierSettingsPopup() {
 
   return (
     <>
-      <Tooltip title="Cashier layout settings">
-        <IconButton
-          size="small"
+      <div title="Cashier layout settings">
+        <POSButton
+          variant="ghost"
+          size="sm"
           onClick={() => setOpen(true)}
-          sx={{
-            color: c.subtext, bgcolor: c.card, border: `1px solid ${c.cardBorder}`,
+          icon={<POSIcon icon={<SettingsIcon />} size="sm" variant="muted" />}
+          style={{
+            color: c.subtext,
+            backgroundColor: c.card,
+            border: `1px solid ${c.cardBorder}`,
             borderRadius: `${c.ui.inputRadius}px`,
-            backgroundImage: 'none',
-            '&:hover': { bgcolor: c.cardHover, color: c.text, borderColor: c.button, backgroundImage: 'none' },
           }}
         >
-          <SettingsIcon fontSize="small" />
-       </IconButton>
-     </Tooltip>
+          {' '}
+        </POSButton>
+      </div>
 
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: c.card,
-            color: c.text,
-            border: `1px solid ${c.cardBorder}`,
-            borderRadius: `${c.ui.cardRadius}px`,
-            boxShadow: c.ui.cardShadow,
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: c.text, fontSize: c.fontSize('h6'), fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Cashier Layout Settings</span>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<RestartAlt />}
-            onClick={reset}
-            sx={{
-              color: c.subtext, borderColor: c.buttonBorder, bgcolor: c.input,
-              borderRadius: `${c.ui.inputRadius}px`,
-              fontSize: c.fontSize('caption'),
-              minHeight: c.ui.minTouchTarget * 0.7,
-              backgroundImage: 'none',
-              '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
+      {open && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <POSCard
+            variant="default"
+            elevation="lg"
+            padding="lg"
+            style={{
+              width: '100%',
+              maxWidth: `${c.ui.cardMinHeight * 6}px`,
+              maxHeight: '80vh',
+              overflow: 'auto',
             }}
           >
-            Reset defaults
-         </Button>
-       </DialogTitle>
-        <DialogContent>
-          <Paper sx={{
-            p: 2,
-            bgcolor: c.input,
-            border: `1px solid ${c.inputBorder}`,
-            borderRadius: `${c.ui.inputRadius}px`,
-            mb: 2,
-            boxShadow: 'none',
-          }}>
-            <Typography sx={{ fontSize: c.fontSize('caption'), color: c.subtext, mb: 0.5 }}>
-              Defaults
-           </Typography>
-            <Typography sx={{ fontSize: c.fontSize('caption'), color: c.text, fontFamily: 'monospace' }}>
-              {JSON.stringify(CASHIER_LAYOUT_DEFAULTS)}
-           </Typography>
-         </Paper>
+            {/* Dialog Title */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${c.ui.cardGap}px` }}>
+              <span style={{ fontSize: c.fontSize('h6'), fontWeight: 700, color: c.text }}>
+                Cashier Layout Settings
+              </span>
+              <POSButton
+                variant="outline"
+                size="sm"
+                onClick={reset}
+                icon={<POSIcon icon={<RestartAlt />} size="sm" variant="muted" />}
+                style={{
+                  color: c.subtext,
+                  backgroundColor: c.input,
+                  border: `1px solid ${c.cardBorder}`,
+                  borderRadius: `${c.ui.inputRadius}px`,
+                  fontSize: c.fontSize('caption'),
+                  minHeight: `${c.ui.minTouchTarget * 0.7}px`,
+                }}
+              >
+                Reset defaults
+              </POSButton>
+            </div>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <SliderRow
-              label="Bill column width (left)"
-              unit="px"
-              value={config.floorLeftWidth}
-              min={240}
-              max={800}
-              step={10}
-              onChange={(v) => setLayout({ floorLeftWidth: v })}
-            />
-            <SliderRow
-              label="Table tile height"
-              unit="px"
-              value={config.floorTileHeight}
-              min={80}
-              max={180}
-              step={4}
-              onChange={(v) => setLayout({ floorTileHeight: v })}
-            />
-            <SliderRow
-              label="Table tile min width"
-              unit="px"
-              value={config.floorTileMin}
-              min={80}
-              max={240}
-              step={10}
-              onChange={(v) => setLayout({ floorTileMin: v })}
-            />
-            <SliderRow
-              label="Tile gap"
-              unit="px"
-              value={config.floorGap}
-              min={4}
-              max={24}
-              step={2}
-              onChange={(v) => setLayout({ floorGap: v })}
-            />
-            <SliderRow
-              label="Header strip height"
-              unit="px"
-              value={config.headerHeight}
-              min={48}
-              max={96}
-              step={4}
-              onChange={(v) => setLayout({ headerHeight: v })}
-            />
-         </Box>
-       </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => { setOpen(false); nav('/settings/ui'); }}
-            startIcon={<OpenInNewIcon />}
-            sx={{
-              color: c.subtext, borderColor: c.buttonBorder,
-              borderRadius: `${c.ui.buttonRadius}px`,
-              minHeight: c.ui.buttonMinHeight,
-              backgroundImage: 'none',
-              '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-            }}
-          >
-            More UI settings
-       </Button>
-          <Button
-            onClick={() => setOpen(false)}
-            sx={{
-              color: c.text, borderColor: c.buttonBorder,
-              borderRadius: `${c.ui.buttonRadius}px`,
-              minHeight: c.ui.buttonMinHeight,
-              backgroundImage: 'none',
-              '&:hover': { bgcolor: c.cardHover, borderColor: c.button, backgroundImage: 'none' },
-            }}
-          >
-            Close
-      </Button>
-    </DialogActions>
-     </Dialog>
+            {/* Dialog Content */}
+            <POSCard
+              variant="outlined"
+              padding="md"
+              style={{
+                backgroundColor: c.input,
+                border: `1px solid ${c.inputBorder}`,
+                borderRadius: `${c.ui.inputRadius}px`,
+                marginBottom: `${c.ui.cardGap * 1.5}px`,
+              }}
+            >
+              <span style={{ fontSize: c.fontSize('caption'), color: c.subtext, display: 'block', marginBottom: `${c.ui.spacingBase * 0.5}px` }}>
+                Defaults
+              </span>
+              <code style={{ fontSize: c.fontSize('caption'), color: c.text, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                {JSON.stringify(CASHIER_LAYOUT_DEFAULTS)}
+              </code>
+            </POSCard>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.cardGap * 1.5}px` }}>
+              <SliderRow
+                label="Bill column width (left)"
+                unit="px"
+                value={config.floorLeftWidth}
+                min={240}
+                max={800}
+                step={10}
+                onChange={(v) => setLayout({ floorLeftWidth: v })}
+              />
+              <SliderRow
+                label="Table tile height"
+                unit="px"
+                value={config.floorTileHeight}
+                min={80}
+                max={180}
+                step={4}
+                onChange={(v) => setLayout({ floorTileHeight: v })}
+              />
+              <SliderRow
+                label="Table tile min width"
+                unit="px"
+                value={config.floorTileMin}
+                min={80}
+                max={240}
+                step={10}
+                onChange={(v) => setLayout({ floorTileMin: v })}
+              />
+              <SliderRow
+                label="Tile gap"
+                unit="px"
+                value={config.floorGap}
+                min={4}
+                max={24}
+                step={2}
+                onChange={(v) => setLayout({ floorGap: v })}
+              />
+              <SliderRow
+                label="Header strip height"
+                unit="px"
+                value={config.headerHeight}
+                min={48}
+                max={96}
+                step={4}
+                onChange={(v) => setLayout({ headerHeight: v })}
+              />
+            </div>
+
+            {/* Dialog Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: `${c.ui.spacingBase}px`, marginTop: `${c.ui.cardGap * 1.5}px` }}>
+              <POSButton
+                variant="outline"
+                size="sm"
+                onClick={() => { setOpen(false); nav('/settings/ui'); }}
+                icon={<POSIcon icon={<OpenInNewIcon />} size="sm" variant="muted" />}
+                style={{
+                  color: c.subtext,
+                  border: `1px solid ${c.cardBorder}`,
+                  borderRadius: `${c.ui.buttonRadius}px`,
+                  minHeight: `${c.ui.buttonMinHeight}px`,
+                }}
+              >
+                More UI settings
+              </POSButton>
+              <POSButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setOpen(false)}
+                style={{
+                  color: c.text,
+                  border: `1px solid ${c.cardBorder}`,
+                  borderRadius: `${c.ui.buttonRadius}px`,
+                  minHeight: `${c.ui.buttonMinHeight}px`,
+                }}
+              >
+                Close
+              </POSButton>
+            </div>
+          </POSCard>
+        </div>
+      )}
     </>
   );
 }

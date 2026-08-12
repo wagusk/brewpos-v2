@@ -56,6 +56,67 @@ def set_text_size(size: float) -> None:
     _persist(data)
 
 
+# ── Table sections (M28) ──────────────────────────────────────────
+# Sections are an ordered list of `{name, color}` pairs that group
+# tables on the Table Overview screen. The list is fully data-driven
+# (persisted JSON) so the floor plan can be reconfigured without code
+# changes. The first entry is the implicit default for new tables.
+DEFAULT_TABLE_SECTIONS: list[dict] = [
+    {"name": "Main Hall", "color": "#5b8def"},
+    {"name": "Patio",     "color": "#10b981"},
+    {"name": "Bar",       "color": "#f59e0b"},
+    {"name": "Private",   "color": "#a855f7"},
+]
+
+
+def get_table_sections() -> list[dict]:
+    """Active table sections, persisted > defaults. Always returns a
+    fully-defaulted list so callers don't have to merge. Each entry is
+    `{name, color}` where color is `#rrggbb`. Sections with duplicate
+    names are de-duped (first wins) so the UI can group safely."""
+    persisted = _load_persisted()
+    stored = persisted.get("table_sections")
+    if not isinstance(stored, list) or not stored:
+        return [dict(s) for s in DEFAULT_TABLE_SECTIONS]
+    seen: set[str] = set()
+    out: list[dict] = []
+    for raw in stored:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        color = str(raw.get("color") or "#5b8def")
+        if not (color.startswith("#") and len(color) == 7):
+            color = "#5b8def"
+        out.append({"name": name, "color": color})
+        seen.add(name)
+    return out or [dict(s) for s in DEFAULT_TABLE_SECTIONS]
+
+
+def set_table_sections(sections: list[dict]) -> list[dict]:
+    """Persist a new sections list. Caller is responsible for sending
+    the canonical list — this normalises minimally and returns the
+    stored result via get_table_sections()."""
+    data = _load_persisted()
+    cleaned: list[dict] = []
+    seen: set[str] = set()
+    for raw in sections or []:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        color = str(raw.get("color") or "#5b8def")
+        if not (color.startswith("#") and len(color) == 7):
+            color = "#5b8def"
+        cleaned.append({"name": name, "color": color})
+        seen.add(name)
+    data["table_sections"] = cleaned or [dict(s) for s in DEFAULT_TABLE_SECTIONS]
+    _persist(data)
+    return get_table_sections()
+
+
 # ── Discount policy defaults (M21) ───────────────────────────────
 DEFAULT_DISCOUNT_POLICY = {
     "max_discount_pct": 0.50,

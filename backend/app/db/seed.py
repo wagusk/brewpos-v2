@@ -76,7 +76,19 @@ SEED_PRODUCTS = [
 ]
 
 
-SEED_TABLES = [(f"T{i}", 4) for i in range(1, 9)]
+# M28 — tables seeded with explicit section/sort so the Overview screen
+# demonstrates grouping on first boot. Layout: T1–T4 Main Hall, T5–T6
+# Patio, T7 Bar, T8 Private. Admin can re-assign any table via the UI.
+SEED_TABLES = [
+    ("T1", 4, "Main Hall", 0),
+    ("T2", 4, "Main Hall", 1),
+    ("T3", 4, "Main Hall", 2),
+    ("T4", 4, "Main Hall", 3),
+    ("T5", 4, "Patio",     0),
+    ("T6", 4, "Patio",     1),
+    ("T7", 2, "Bar",       0),
+    ("T8", 8, "Private",   0),
+]
 
 
 def run():
@@ -135,9 +147,26 @@ def run():
                         db.add(ModifierOption(name=oname, price_delta=delta, group_id=mg.id))
 
         # Tables
-        for tname, seats in SEED_TABLES:
-            if not db.query(Table).filter(Table.name == tname).first():
-                db.add(Table(name=tname, seats=seats))
+        for entry in SEED_TABLES:
+            # SEED_TABLES entries are (name, seats) or (name, seats, section, sort).
+            if len(entry) == 4:
+                tname = entry[0]
+                seats = entry[1]
+                section = entry[2]
+                sort = entry[3]
+            else:
+                tname = entry[0]
+                seats = entry[1]
+                section = "Main Hall"
+                sort = 0
+            existing = db.query(Table).filter(Table.name == tname).first()
+            if not existing:
+                db.add(Table(name=tname, seats=seats, section=section, sort=sort))
+            else:
+                # Backfill section/sort on legacy rows so a fresh-seed
+                # over an existing DB still produces a sensible Overview.
+                existing.section = section
+                existing.sort = sort
 
         db.commit()
         print(f"Seeded: {len(SEED_USERS)} users, {len(SEED_CATEGORIES)} categories, "

@@ -31,7 +31,7 @@ export default function TopBar({ title }: Props) {
   const user = userStr ? JSON.parse(userStr) : null;
   const userName = user?.name || t('shell.role');
 
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
     <Box
