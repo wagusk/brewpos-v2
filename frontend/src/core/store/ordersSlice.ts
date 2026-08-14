@@ -8,11 +8,14 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 export interface OrderItem {
   id: number;
   product_id: number;
-  product_name: string;
-  quantity: number;
-  unit_price: number;
+  name: string;
+  price: number;
+  qty: number;
   modifiers: any[];
   status: string;
+  station: string;
+  notes: string;
+  sent_at?: string | null;
 }
 
 export interface Order {

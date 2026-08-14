@@ -197,6 +197,8 @@ export const en: Translations = {
   'order.requestPayment': 'Request Payment',
   'order.noBill': 'No active bill',
   'order.noNewItems': 'No new items - bill has existing items at the kitchen',
+  'order.tableHasOpenBill': 'Table already has an open bill #{number}. Loading existing bill.',
+  'order.billPaid': 'Bill paid — returning to table view',
 
   // M35 - Payment processing
   'payment.title': 'Payment',

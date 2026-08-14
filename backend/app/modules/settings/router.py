@@ -19,6 +19,7 @@ from app.core.config import (
     get_active_db_url, get_tax_rate, get_taxes, set_taxes,
     get_text_size, set_text_size, set_active_db_url,
     reset_persisted_settings, get_discount_policy, set_discount_policy,
+    get_order_approval_required, set_order_approval_required,
 )
 from app.core.security import current_user, require_role
 from app.models import User as UserModel
@@ -71,6 +72,7 @@ class SettingsOut(BaseModel):
     product_count: int
     user_count: int
     discount_policy: dict
+    order_approval_required: bool
 
 
 def _kind(url: str) -> str:
@@ -120,6 +122,7 @@ def _build_settings_out(db: Session) -> SettingsOut:
         product_count=count_products(db),
         user_count=count_users(db),
         discount_policy=get_discount_policy(),
+        order_approval_required=get_order_approval_required(),
     )
 
 
@@ -314,3 +317,15 @@ def get_discount_settings(user: UserModel = Depends(require_role("admin"))):
 def update_discount_settings(payload: DiscountPolicyIn, user: UserModel = Depends(require_role("admin"))):
     patch = payload.model_dump(exclude_none=True)
     return DiscountPolicyOut(**set_discount_policy(patch))
+
+
+# ── Order approval ───────────────────────────────────────────────────
+class OrderApprovalIn(BaseModel):
+    order_approval_required: bool | None = None
+
+
+@router.post("/order-approval", response_model=SettingsOut)
+def update_order_approval(payload: OrderApprovalIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    if payload.order_approval_required is not None:
+        set_order_approval_required(payload.order_approval_required)
+    return _build_settings_out(db)

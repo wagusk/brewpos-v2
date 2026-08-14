@@ -11,6 +11,23 @@
 - Roles: admin, master, cashier, waiter, kitchen, bar
 - Theme: Light theme (MUI light palette, no dark mode)
 
+## WebSocket Real-Time Sync
+
+All 5 operational pages receive real-time updates via WebSocket with connection status indicators.
+
+**Pages with WebSocket:**
+| Page | Events Listened | Fallback Polling |
+|------|----------------|------------------|
+| Table View (`/tables`) | `table_*`, `order_*` | 30s |
+| Order (`/order`) | `order_updated`, `order_closed`, `order_cancelled` | 10s (bill loaded) |
+| Kitchen (`/kitchen`) | `order_*` | 30s |
+| Bar (`/bar`) | `order_*` | 30s |
+| Cashier (`/cashier`) | `table_*`, `order_*` | 10s |
+
+**Pattern:** Each page tracks `wsConnected` state, shows Wifi/WifiOff chip, falls back to polling when disconnected.
+
+**Events:** `order_created`, `order_updated`, `order_accepted`, `order_item_updated`, `order_served`, `order_closed`, `order_cancelled`, `table_created`, `table_updated`, `table_deleted`
+
 ## UI Design System
 All UI follows the unified visual language documented in `docs/UI-DESIGN-RULE.md`.
 
@@ -50,6 +67,19 @@ modules/
   discount/     DiscountPage (bill history viewer)
   void/         VoidPage (void bills with required reason)
   multilingual/ i18n module (pluggable, t() helper, en.ts + id.ts)
+```
+
+Backend modules:
+```
+modules/
+  auth/         Login, me
+  menu/         Menu, tables, table-sections
+  orders/       Checkout, open-bill, close, accept, cancel, void, append, print, stats
+  admin/        CRUD for all resources + reports
+  settings/     Tax, printer, discount, database, text-size, order-approval
+  printer/      Status, config, test
+  payment/      Initiate, confirm, retry, cancel, get, list-by-order
+  i18n/         Locales, translations
 ```
 
 Glassmorphism module removed (M1, 2026-08-12) — rule is light-only, no glassmorphism.
@@ -109,6 +139,7 @@ Brew-POS-V2/
 ├── run.sh                       One-command run
 ├── README.md                    User guide
 ├── PROGRESS.md                  Build progress
+├── AI-REFERENCE.md              This file
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              FastAPI entry; dynamic module loading
@@ -124,6 +155,7 @@ Brew-POS-V2/
 │   │   │   ├── admin/router.py
 │   │   │   ├── settings/router.py
 │   │   │   ├── printer/router.py
+│   │   │   ├── payment/router.py
 │   │   │   └── i18n/router.py
 │   │   └── ws/                  WebSocket hub
 │   └── brewpos.db
@@ -140,6 +172,7 @@ Brew-POS-V2/
     │   │   ├── permissions.ts  usePermissions hook
     │   │   └── theme/monoTheme.tsx  Light theme tokens + provider (useTheme hook)
     │   ├── components/         POSCard, POSButton, POSTextField, POSChip, POSIcon, Shell
+    │   ├── shared/             Shared UI patterns (dialog, header, keypad, etc.)
     │   └── modules/
     │       ├── auth/LoginPage.tsx
     │       ├── tables/TableViewPage.tsx
@@ -157,6 +190,10 @@ Brew-POS-V2/
     │           ├── id.ts
     │           └── useT.ts
     └── vite.config.ts
+└── docs/
+    ├── UI-DESIGN-RULE.md          UI design specification (v1.0, ACTIVE)
+    ├── UI-DESIGN-RULES.md         Summary pointer deferring to UI-DESIGN-RULE.md
+    └── UI-DESIGN-AUDIT-REPORT.md  Historical tracking doc for migration compliance
 ```
 
 ## Key Services
@@ -224,7 +261,7 @@ new → preparing → ready → served
 
 ## API Client (`frontend/src/core/api.ts`)
 ```typescript
-const API_URL = 'http://localhost:8001';
+const API_URL = 'http://localhost:8000';
 // All requests send Authorization: Bearer <token> header
 // Token stored in localStorage under 'brewpos_token'
 // User object stored under 'brewpos_user' (includes role, permissions)
@@ -232,11 +269,12 @@ const API_URL = 'http://localhost:8001';
 
 All endpoints wired:
 - Auth: login, me
-- Menu: getMenu, getTables
-- Orders: listOrders, checkout, openBill, closeOrder, updateOrder, acceptOrder, cancelOrder, voidOrder, appendItems, printReceipt
+- Menu: getMenu, getTables, getTableSections
+- Orders: listOrders, checkout, openBill, closeOrder, updateOrder, acceptOrder, cancelOrder, voidOrder, appendItems, printReceipt, printTicket, todayStats
 - Admin: getCategories, getProducts, getUsers, getRoles, getAdminTables + CRUD for all
 - Reports: getSalesSummary, getSalesByCategory, getItemSales, getPaymentMethods, getBillHistory
-- Settings: getSettings, updateTax, updatePrinterSettings, testPrinter, getDiscountSettings, updateDiscountSettings, updateDatabase, reloadDatabase, resetDatabase
+- Settings: getSettings, updateTax, updatePrinterSettings, testPrinter, getDiscountSettings, updateDiscountSettings, updateDatabase, reloadDatabase, resetDatabase, restoreDefaults, exportDatabase, importDatabase
+- Payments: initiatePayment, confirmPayment, retryPayment, cancelPayment, getPayment, getPaymentsByOrder
 - i18n: getLocales, getTranslations
 
 ## i18n

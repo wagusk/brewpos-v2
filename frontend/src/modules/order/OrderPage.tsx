@@ -31,6 +31,7 @@ import { useTheme } from '../../core/theme/monoTheme';
 import { usePermissions } from '../../core/permissions';
 import { t } from '../multilingual/i18n';
 import { useNotifications, Toasts } from '../../shared/notifications';
+import { onWebSocketMessage } from '../../core/ws';
 import MenuGrid from './menu/MenuGrid';
 import CartSidebar, { type CartItem, type ExistingBill } from './cart/CartSidebar';
 import ModifierDialog from './menu/ModifierDialog';
@@ -49,7 +50,7 @@ export default function OrderPage() {
   const toast = useNotifications();
 
   const tableIdFromUrl = searchParams.get('table_id') ? parseInt(searchParams.get('table_id')!) : null;
-  const billIdFromUrl = searchParams.get('bill_id') ? parseInt(searchParams.get('bill_id')!) : null;
+  const orderIdFromUrl = searchParams.get('order_id') ? parseInt(searchParams.get('order_id')!) : (searchParams.get('bill_id') ? parseInt(searchParams.get('bill_id')!) : null);
 
   const [menu, setMenu] = useState<{ categories: any[]; products: ProductWithMods[] }>({ categories: [], products: [] });
   const [tables, setTables] = useState<any[]>([]);
@@ -73,10 +74,17 @@ export default function OrderPage() {
       setMenu(menuData);
       setTables(tablesData);
       if (settings && typeof settings.tax_rate === 'number') setTaxRate(settings.tax_rate);
+
+      if (tableIdFromUrl && !orderIdFromUrl) {
+        const found = tablesData.find((t: any) => t.id === tableIdFromUrl);
+        if (found && found.order_id != null) {
+          loadBill(found.order_id);
+        }
+      }
     } catch (e: any) {
       toast.error(t('pos.loadMenuFailed'));
     }
-  }, []);
+  }, [tableIdFromUrl, orderIdFromUrl]);
 
   const loadBill = useCallback(async (billId: number) => {
     setBusy(true);
@@ -90,6 +98,7 @@ export default function OrderPage() {
         tax: o.tax,
         total: o.total,
         table_id: o.table_id ?? null,
+        items: o.items || [],
       });
       if (o.table_id) setSelectedTable(o.table_id);
     } catch (e: any) {
@@ -99,13 +108,38 @@ export default function OrderPage() {
     }
   }, []);
 
+  /**
+   * Single-bill-per-table guard (frontend pre-check).
+   * Returns the existing open bill for the given table if one exists,
+   * or null if the table is free. The backend enforces this too, but
+   * checking here lets us guide the waiter to the existing bill instead
+   * of showing a generic error.
+   */
+  const findOpenBillForTable = useCallback((tableId: number | null): { order_id: number; order_number: number } | null => {
+    if (!tableId) return null;
+    const table = tables.find(tt => tt.id === tableId);
+    if (table && table.order_id != null) {
+      return { order_id: table.order_id, order_number: table.order_number };
+    }
+    return null;
+  }, [tables]);
+
+  /**
+   * Called by CartSidebar when the M35 payment dialog completes a bill.
+   * The order is now "paid" — go back to the table overview, which will
+   * reflect the table as free (via WebSocket broadcast + its own listener).
+   */
+  const handlePaymentSuccess = useCallback(() => {
+    nav('/tables');
+  }, [nav]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   useEffect(() => {
-    if (billIdFromUrl) loadBill(billIdFromUrl);
-  }, [billIdFromUrl, loadBill]);
+    if (orderIdFromUrl) loadBill(orderIdFromUrl);
+  }, [orderIdFromUrl, loadBill]);
 
   const refreshBillTotals = useCallback(async () => {
     if (!bill) return;
@@ -114,6 +148,25 @@ export default function OrderPage() {
       setBill(prev => prev ? { ...prev, subtotal: o.subtotal, tax: o.tax, total: o.total, status: o.status } : prev);
     } catch { /* ignore */ }
   }, [bill]);
+
+  // Real-time: refresh the current bill when another terminal updates it
+  // (e.g. a cashier closing the bill, an item being served, a payment
+  // processed). This keeps the OrderPage bill section in sync with the
+  // Table View and other terminals.
+  useEffect(() => {
+    const unsubscribe = onWebSocketMessage((event, data) => {
+      if (!bill) return;
+      if (event !== 'order_updated' && event !== 'order_closed' && event !== 'order_cancelled') return;
+      if (data?.id !== bill.id) return;
+      if (event === 'order_closed' || event === 'order_cancelled') {
+        nav('/tables');
+      } else {
+        refreshBillTotals();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [bill, refreshBillTotals, nav]);
 
   const handleProductClick = (product: ProductWithMods) => {
     if (product.modifier_groups.length === 0) {
@@ -185,6 +238,17 @@ export default function OrderPage() {
       toast.error(t('common.error'));
       return;
     }
+    // Single-bill-per-table: if the table already has an open bill,
+    // load it and let the waiter append items instead of creating a new bill.
+    if (selectedTable) {
+      const existing = findOpenBillForTable(selectedTable);
+      if (existing) {
+        setBill(null);
+        loadBill(existing.order_id);
+        toast.info(t('order.tableHasOpenBill').replace('{number}', String(existing.order_number)));
+        return;
+      }
+    }
     setBusy(true);
     try {
       const items = cart.map(i => ({
@@ -205,7 +269,7 @@ export default function OrderPage() {
       const ts = await api.getTables();
       setTables(ts);
     } catch (e: any) {
-      toast.error(t('order.sendOrderFailed'));
+      toast.error(e.message || t('order.sendOrderFailed'));
     } finally {
       setBusy(false);
     }
@@ -216,6 +280,17 @@ export default function OrderPage() {
     if (!can('order.open')) {
       toast.error(t('common.error'));
       return;
+    }
+    // Single-bill-per-table: if the table already has an open bill,
+    // load it instead of creating a duplicate.
+    if (selectedTable) {
+      const existing = findOpenBillForTable(selectedTable);
+      if (existing) {
+        setBill(null);
+        loadBill(existing.order_id);
+        toast.info(t('order.tableHasOpenBill').replace('{number}', String(existing.order_number)));
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -236,7 +311,7 @@ export default function OrderPage() {
       toast.success(t('order.holdSaved'));
       nav('/tables');
     } catch (e: any) {
-      toast.error(t('order.holdBillFailed'));
+      toast.error(e.message || t('order.holdBillFailed'));
     } finally {
       setBusy(false);
     }
@@ -266,11 +341,6 @@ export default function OrderPage() {
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleRequestPayment = () => {
-    if (!bill) return;
-    nav(`/pos?close_bill=${bill.id}`);
   };
 
   return (
@@ -305,7 +375,7 @@ export default function OrderPage() {
         onSendToKitchen={bill ? undefined : handleSendToKitchen}
         onAppendItems={bill ? handleAppend : undefined}
         onHoldBill={handleHold}
-        onRequestPayment={bill ? handleRequestPayment : undefined}
+        onPaymentSuccess={handlePaymentSuccess}
         onEditNotes={editNotes}
       />
       <ModifierDialog

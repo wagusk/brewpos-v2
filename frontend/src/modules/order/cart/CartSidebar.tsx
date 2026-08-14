@@ -37,6 +37,17 @@ export interface CartItem {
   notes: string;
 }
 
+export interface ExistingBillItem {
+  id: number;
+  product_id: number;
+  name: string;
+  price: number;
+  qty: number;
+  status: string;
+  notes: string;
+  modifiers: any[];
+}
+
 export interface ExistingBill {
   id: number;
   number: number;
@@ -45,6 +56,7 @@ export interface ExistingBill {
   tax: number;
   total: number;
   table_id: number | null;
+  items?: ExistingBillItem[];
 }
 
 interface Table {
@@ -69,18 +81,17 @@ interface Props {
   onSendToKitchen?: () => void;       // new bill: create + send
   onAppendItems?: () => void;         // existing bill: append
   onHoldBill?: () => void;            // existing bill: keep state, no action
-  onRequestPayment?: () => void;      // existing accepted/ready bill: jump to close
   onEditNotes?: (uid: string, notes: string) => void;
-  /** M35 - Payment dialog open state */
-  onOpenPaymentDialog?: (bill: { id: number; number: number; total: number; status: string }) => void;
+  /** M35 - Called when the payment dialog completes (bill is now paid). */
+  onPaymentSuccess?: () => void;
 }
 
 export default function CartSidebar(props: Props) {
   const {
     cart, tables, selectedTable, bill, taxRate, busy,
     permissions = [], userRole, onUpdateQty, onRemove, onSelectTable, onClearCart,
-    onSendToKitchen, onAppendItems, onHoldBill, onRequestPayment, onEditNotes,
-    onOpenPaymentDialog,
+    onSendToKitchen, onAppendItems, onHoldBill, onEditNotes,
+    onPaymentSuccess,
   } = props;
   const c = useTheme();
   const toast = useNotifications();
@@ -94,6 +105,10 @@ export default function CartSidebar(props: Props) {
 
   // M35 - Payment dialog state
   const [paymentBill, setPaymentBill] = useState<{ id: number; number: number; total: number; status: string } | null>(null);
+
+  const currentTable = tables.find(t => t.id === selectedTable || (bill && t.id === bill.table_id));
+  const hasExistingItems = !!(bill && bill.items && bill.items.length > 0);
+  const isEmpty = (!bill && cart.length === 0) || (bill && !hasExistingItems && cart.length === 0);
 
   const newSubtotal = cart.reduce((sum, i) => sum + i.price * i.qty, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.qty, 0);
@@ -128,7 +143,10 @@ export default function CartSidebar(props: Props) {
           color: c.text,
           flex: 1,
         }}>
-          {bill ? 'Bill #' + bill.number : 'Cart'}{cartCount > 0 ? ' (' + cartCount + ')' : ''}
+          {bill
+            ? `Bill #${bill.number}${currentTable ? ` (${currentTable.name})` : ''}`
+            : (currentTable ? `Table: ${currentTable.name}` : 'Cart')}
+          {cartCount > 0 ? ' (' + cartCount + ')' : ''}
         </span>
         {bill && (
           <POSChip variant="default" size="sm" style={{ color: c.text }}>
@@ -140,24 +158,53 @@ export default function CartSidebar(props: Props) {
 
       {/* Items list */}
       <div style={{ flex: 1, overflow: 'auto', padding: `${c.ui.spacingBase * 1.5}px` }}>
-        {cart.length === 0 && !bill ? (
+        {isEmpty ? (
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             height: '100%', color: c.subtext, gap: `${c.ui.spacingBase}px`,
           }}>
             <POSIcon icon={<Restaurant />} size="lg" variant="muted" />
-            <span style={{ fontSize: c.fontSize('body2') }}>{t('order.noBill')}</span>
-          </div>
-        ) : cart.length === 0 && bill ? (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            height: '100%', color: c.subtext, gap: `${c.ui.spacingBase}px`,
-          }}>
-            <POSIcon icon={<Restaurant />} size="lg" variant="muted" />
-            <span style={{ fontSize: c.fontSize('body2') }}>{t('order.noNewItems')}</span>
+            <span style={{ fontSize: c.fontSize('body2') }}>{bill ? t('order.noNewItems') : t('order.noBill')}</span>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
+            {hasExistingItems && (
+              <>
+                <span style={{ fontSize: c.fontSize('caption'), fontWeight: 700, color: c.subtext, textTransform: 'uppercase', marginBottom: 2 }}>
+                  Previously Added Items ({bill!.items!.length})
+                </span>
+                {bill!.items!.map(ex => (
+                  <POSCard key={`ex-${ex.id}`} variant="outline" padding="sm" minHeight="auto" style={{ backgroundColor: c.input }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 700, fontSize: c.fontSize('body1'), color: c.text, display: 'block' }}>
+                          {ex.name} × {ex.qty}
+                        </span>
+                        {ex.notes && (
+                          <span style={{ fontSize: c.fontSize('caption'), color: c.subtext, fontStyle: 'italic', display: 'block' }}>
+                            &quot;{ex.notes}&quot;
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <POSChip variant="status" size="sm" status={ex.status === 'served' ? 'served' : ex.status === 'ready' ? 'ready' : 'accepted'}>
+                          {ex.status}
+                        </POSChip>
+                        <span style={{ fontSize: c.fontSize('body2'), fontWeight: 600, color: c.text }}>
+                          ${(ex.price * ex.qty).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </POSCard>
+                ))}
+                {cart.length > 0 && (
+                  <span style={{ fontSize: c.fontSize('caption'), fontWeight: 700, color: c.subtext, textTransform: 'uppercase', marginTop: 8, marginBottom: 2 }}>
+                    New Items to Add
+                  </span>
+                )}
+              </>
+            )}
+
             {cart.map(item => (
               <POSCard key={item.uid} variant="default" padding="sm" minHeight="auto">
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: `${c.ui.spacingBase}px` }}>
@@ -283,46 +330,7 @@ export default function CartSidebar(props: Props) {
         )}
       </div>
 
-      {/* Table selector (new bill only — existing bills have a fixed table) */}
-      {!bill && (
-        <div style={{
-          padding: `${c.ui.spacingBase * 2}px ${c.ui.spacingBase * 2}px`,
-          borderTop: `1px solid ${c.divider}`,
-        }}>
-          <span style={{
-            display: 'block',
-            marginBottom: `${c.ui.spacingBase}px`,
-            fontSize: c.fontSize('body2'),
-            color: c.subtext,
-            fontWeight: 600,
-          }}>
-            Destination
-          </span>
-          <div style={{ display: 'flex', gap: `${c.ui.spacingBase}px`, flexWrap: 'wrap' }}>
-            <POSChip
-              variant="default"
-              selected={selectedTable === null}
-              onClick={() => onSelectTable(null)}
-              size="md"
-              icon={<POSIcon icon={<LocalDining />} size="sm" variant={selectedTable === null ? 'info' : 'default'} />}
-            >
-              Takeaway
-            </POSChip>
-            {tables.map(t => (
-              <POSChip
-                key={t.id}
-                variant="default"
-                selected={selectedTable === t.id}
-                onClick={() => onSelectTable(t.id)}
-                size="md"
-                icon={<POSIcon icon={<TableRestaurant />} size="sm" variant={selectedTable === t.id ? 'info' : 'default'} />}
-              >
-                {t.name}
-              </POSChip>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* Totals */}
       <div style={{
@@ -505,7 +513,8 @@ export default function CartSidebar(props: Props) {
         order={paymentBill}
         onSuccess={() => {
           setPaymentBill(null);
-          toast.success('Payment completed');
+          toast.success(t('payment.completed'));
+          onPaymentSuccess?.();
         }}
         onError={(msg) => toast.error(msg)}
       />

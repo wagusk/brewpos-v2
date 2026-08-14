@@ -13,6 +13,8 @@ import PrinterTab from './printer/PrinterTab';
 import DiscountTab from './discount/DiscountTab';
 import CashierLayoutTab from './cashierlayout/CashierLayoutTab';
 import DatabaseTab from './database/DatabaseTab';
+import OrderFlowTab from './orderflow/OrderFlowTab';
+import TablesWorkspace from '../admin/tables/TablesWorkspace';
 import { useNotifications, Toasts } from '../../shared/notifications';
 import {
   Receipt as TaxIcon,
@@ -21,10 +23,12 @@ import {
   PointOfSale as CashierIcon,
   Storage as DatabaseIcon,
   Settings as UiIcon,
+  TableRestaurant as TableIcon,
+  Task as OrderFlowIcon,
   ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 
-type SettingsSection = 'tax' | 'printer' | 'discount' | 'cashier' | 'database' | 'ui';
+type SettingsSection = 'tax' | 'printer' | 'discount' | 'cashier' | 'database' | 'order_flow' | 'ui' | 'tables';
 
 interface SectionConfig {
   key: SettingsSection;
@@ -39,7 +43,9 @@ const SECTIONS: SectionConfig[] = [
   { key: 'discount', label: 'Discount Policy', icon: <DiscountIcon />, description: 'Preset discounts, max discount percentages, and reason requirements.' },
   { key: 'cashier', label: 'Cashier Layout', icon: <CashierIcon />, description: 'Customizable floor plan, tile sizes, and grid column dimensions.' },
   { key: 'database', label: 'Database Settings', icon: <DatabaseIcon />, description: 'SQLite / PostgreSQL connection string and DB migration tools.' },
+  { key: 'order_flow', label: 'Order Flow', icon: <OrderFlowIcon />, description: 'Approval gate, station routing, and bill closing rules.' },
   { key: 'ui', label: 'UI Appearance', icon: <UiIcon />, description: 'Light theme palette tokens and global UI scale.' },
+  { key: 'tables', label: 'Tables', icon: <TableIcon />, description: 'Manage table names, seating capacity, sections, and active status.' },
 ];
 
 export default function SettingsPage() {
@@ -220,10 +226,16 @@ export default function SettingsPage() {
             {activeSection === 'database' && (
               <DatabaseTab settings={settings} setSettings={setSettings} setSuccess={setSuccess} setError={setError} />
             )}
+            {activeSection === 'order_flow' && (
+              <OrderFlowTab settings={settings} setSettings={setSettings} loading={loading} setLoading={setLoading} setSuccess={setSuccess} setError={setError} />
+            )}
             {activeSection === 'ui' && (
               <div style={{ color: c.text, fontSize: c.fontSize('body1') }}>
                 UI settings and theme tokens are fully managed through the application theme and UI layout configuration.
               </div>
+            )}
+            {activeSection === 'tables' && (
+              <TablesWorkspace />
             )}
           </POSCard>
         </div>

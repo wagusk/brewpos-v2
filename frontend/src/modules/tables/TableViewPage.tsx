@@ -127,7 +127,7 @@ export default function TableViewPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', backgroundColor: c.page }}>
-      {/* ── Main content: All Tables Grid ────────────────── */}
+      {/* -- Main content: All Tables Grid -- */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: `${c.ui.spacingBase * 2}px` }}>
         {loading && tables.length === 0 ? (
           <EmptyState title={t('common.loading')} icon={<TableIcon />} />

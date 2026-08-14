@@ -9,7 +9,7 @@ from app.models import (
     Order, OrderItem, OrderItemModifier, Payment, User,
 )
 from app.schemas import CheckoutIn, CartItemIn, OrderOut, OrderItemOut, OrderItemModOut, PaymentOut
-from app.core.config import get_tax_rate
+from app.core.config import get_tax_rate, get_order_approval_required
 
 
 # Status transitions allowed by cancel_order — kitchen may reject an order
@@ -341,10 +341,11 @@ def close_order(
         raise ValueError("Order not found")
 
     is_empty_open = order.status == "open" and len(order.items) == 0
-    if not is_empty_open and order.status not in ("accepted", "ready", "served"):
-        raise ValueError(
-            f"Cannot close order in status '{order.status}' — kitchen must accept first"
-        )
+    if not is_empty_open:
+        if get_order_approval_required() and order.status not in ("accepted", "ready", "served"):
+            raise ValueError(
+                f"Cannot close order in status '{order.status}' — kitchen/bar must accept first"
+            )
 
     if is_empty_open:
         # Empty bill — delete entirely, no record kept

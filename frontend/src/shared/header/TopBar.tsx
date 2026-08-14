@@ -12,6 +12,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../core/theme/monoTheme';
 import { t } from '../../modules/multilingual/i18n';
+import { ConnectionStatus } from '../connection';
 
 interface Props {
   title: string;
@@ -75,15 +76,15 @@ export default function TopBar({ title }: Props) {
         {title}
       </Typography>
 
-      {/* Right: clock + logout */}
-      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+      {/* Right: connection status + clock + logout */}
+      <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5 }}>
+        <ConnectionStatus position="inline" />
         <Typography
           sx={{
             fontSize: c.fontSize('body2'),
             color: c.subtext,
             fontFamily: 'monospace',
             whiteSpace: 'nowrap',
-            mr: 0.5,
           }}
         >
           {timeStr}

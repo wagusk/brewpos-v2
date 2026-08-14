@@ -9,7 +9,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocker
 ## Stack
 - **Backend:** FastAPI · SQLAlchemy 2.0 · SQLite · JWT (python-jose) · bcrypt · WebSocket
 - **Frontend:** Vite 5 · React 18 · TypeScript · MUI v6 · Redux Toolkit · React Router 6
-- **Sync:** FastAPI WebSocket hub → all terminals receive order events
+- **Sync:** FastAPI WebSocket hub → all terminals (Table View, Order, Kitchen, Bar, Cashier)
 - **Roles:** `admin` · `master` · `cashier` · `waiter` · `kitchen` · `bar`
 - **UI Theme:** Light theme (MUI light palette, no dark mode)
 - **Run:** `./run.sh` — auto-creates venv, installs deps, builds frontend, seeds DB, starts backend serving static UI
@@ -30,6 +30,7 @@ Brew-POS-V2/
 ├── README.md                  # User guide
 ├── AI-REFERENCE.md            # Condensed reference for AI
 ├── PROGRESS.md                # This file
+├── opencode.json              # OpenCode AI provider config
 ├── backend/
 │   ├── app/
 │   │   ├── main.py            # FastAPI entry; dynamic module loading
@@ -45,6 +46,7 @@ Brew-POS-V2/
 │   │   │   ├── admin/router.py
 │   │   │   ├── settings/router.py
 │   │   │   ├── printer/router.py
+│   │   │   ├── payment/router.py
 │   │   │   └── i18n/router.py
 │   │   └── ws/{__init__,hub}.py
 │   └── brewpos.db             # SQLite (auto-created)
@@ -65,6 +67,7 @@ Brew-POS-V2/
 │       │   ├── ws.ts           # WebSocket client
 │       │   └── theme/monoTheme.tsx  # Light theme tokens (useTheme)
 │       ├── components/         # POSCard, POSButton, POSTextField, POSChip, POSIcon, Shell
+│       ├── shared/             # Shared UI patterns (dialog, header, keypad, etc.)
 │       └── modules/
 │           ├── auth/          # LoginPage (PIN pad, role-based redirect)
 │           ├── tables/        # TableViewPage (visual table grid, first operational screen)
@@ -77,12 +80,11 @@ Brew-POS-V2/
 │           ├── settings/      # SettingsPage + UISettingsPage (tax, printer, discount, database, UI tokens)
 │           ├── discount/      # DiscountPage (bill history)
 │           ├── void/          # VoidPage (void bills with reason)
-│           ├── multilingual/  # i18n (en.ts, id.ts)
-│           └── dashboard/     # Dashboard overview
+│           └── multilingual/  # i18n (en.ts, id.ts)
 └── docs/
-    ├── API.md                 # Full API reference
-    ├── INSTALL.md             # Install/portability guide
-    └── ARCHITECTURE.md        # Design + extensibility
+    ├── UI-DESIGN-RULE.md      # UI design specification (v1.0, ACTIVE)
+    ├── UI-DESIGN-RULES.md     # Summary pointer deferring to UI-DESIGN-RULE.md
+    └── UI-DESIGN-AUDIT-REPORT.md  # Historical tracking doc for migration compliance
 ```
 
 ---
@@ -90,9 +92,8 @@ Brew-POS-V2/
 ## Milestones
 
 ### M1 — v2 Scaffold & Module Registry
-- [x] Repo layout (backend/ + frontend/ + scripts/ + docs/)
+- [x] Repo layout (backend/ + frontend/ + docs/)
 - [x] `run.sh` builds frontend + boots backend serving static UI
-- [x] `dev.sh` runs backend + frontend vite dev concurrently
 - [x] PROGRESS.md + README skeleton + AI-REFERENCE.md
 - [x] Modular architecture design
 - [x] Module registry system (frontend + backend)
@@ -115,31 +116,34 @@ Brew-POS-V2/
 
 ### M4 — Backend Module Structure (All Complete)
 - [x] Auth module router (`modules/auth/router.py`) — login, me
-- [x] Menu module router (`modules/menu/router.py`) — menu, tables
+- [x] Menu module router (`modules/menu/router.py`) — menu, tables, table-sections
 - [x] Orders module router (`modules/orders/router.py`) — checkout, open-bill, close, accept, cancel, void, append, print, stats
 - [x] Admin module router (`modules/admin/router.py`) — CRUD for categories, products, tables, users, roles + reports
-- [x] Settings module router (`modules/settings/router.py`) — tax, text-size, database, printer, discount
+- [x] Settings module router (`modules/settings/router.py`) — tax, text-size, database, printer, discount, order-approval
 - [x] Printer module router (`modules/printer/router.py`) — status, config, test
+- [x] Payment module router (`modules/payment/router.py`) — initiate, confirm, retry, cancel, get, list-by-order
 - [x] i18n module router (`modules/i18n/router.py`) — locales, translations
 
 ### M5 — Frontend Module Structure (All Complete)
 - [x] Auth module (`modules/auth/LoginPage.tsx`) — PIN pad with role-based redirect
-- [x] Cashier module (`modules/cashier/CashierPage.tsx`) — full POS workflow
-- [x] Waiter module (`modules/waiter/WaiterPage.tsx`) — menu, cart, open bill, send to kitchen
+- [x] Tables module (`modules/tables/TableViewPage.tsx`) — visual table overview, default landing
+- [x] Order module (`modules/order/OrderPage.tsx`) — menu, cart, checkout
+- [x] Cashier module (`modules/cashier/CashierPage.tsx`) — legacy floor-plan variant
+- [x] Payment module (`modules/payment/PaymentDialog.tsx`) — close-bill flow
 - [x] Kitchen module (`modules/kitchen/KitchenPage.tsx`) — order display, item status progression
 - [x] Bar module (`modules/bar/BarPage.tsx`) — filtered order display (bar + both stations)
-- [x] Admin module (`modules/admin/AdminPage.tsx`) — full CRUD for all resources
-- [x] Settings module (`modules/settings/SettingsPage.tsx`) — tax, printer, discount, database config
+- [x] Admin module (`modules/admin/AdminPage.tsx`) — full CRUD for all resources + reports
+- [x] Settings module (`modules/settings/SettingsPage.tsx` + `UISettingsPage.tsx`) — tax, printer, discount, database, UI tokens
 - [x] Discount module (`modules/discount/DiscountPage.tsx`) — bill history viewer
 - [x] Void module (`modules/void/VoidPage.tsx`) — void bills with required reason
-- [x] Light theme module (modules/theme/monoTheme.tsx) — MUI light palette, no dark mode
+- [x] Multilingual module (`modules/multilingual/`) — i18n with en.ts + id.ts
 
 ### M6 — Verification & Build
 - [x] Frontend build passes (`npm run build` → `✓ built in 6.89s`)
 - [x] Backend imports clean (all 20 modules import OK)
 - [x] Backend health check passes (`/health` → 200)
-- [x] Backend 60+ routes registered
-- [x] Backend running on port 8001
+- [x] Backend 68+ routes registered
+- [x] Backend running on port 8000
 - [x] Frontend served as static files by backend at `/`
 
 ### M7 — v1 Migration: Backend Core (Complete)
@@ -153,7 +157,7 @@ Brew-POS-V2/
 - [x] Migrated all API routes (`backend/app/modules/`)
 - [x] Migrated WebSocket hub (`backend/app/ws/`)
 - [x] Backend venv created + deps installed
-- [x] Backend running on port 8001 serving frontend
+- [x] Backend running on port 8000 serving frontend
 
 ### M8 — v1 Migration: Frontend Core (Complete)
 - [x] Created API client (`core/api.ts`) — all endpoints wired
@@ -216,8 +220,8 @@ Brew-POS-V2/
 ```
 $ cd frontend && npm run build
 > vite build
-✓ 11568 modules transformed.
-✓ built in 6.89s.  Asset hash: index-CHaqD5L7.js  ✓
+✓ 11604 modules transformed.
+✓ built in 7.55s.  Asset hash: index-BRL9Kqzl.js  ✓
 
 $ /home/lenovo/Hermes-Project/Brew-POS-V2/.venv/bin/python3 -c "
 import sys; sys.path.insert(0, '.')
@@ -226,13 +230,13 @@ print(f'{len(app.routes)} routes registered')
 "
 68 routes  ✓
 
-$ curl http://localhost:8001/health
+$ curl http://localhost:8000/health
 {"ok":true,"app":"Brew-POS","version":"2.0.0"}  ✓
 
-$ curl -s -X POST http://localhost:8001/api/auth/login -H "Content-Type: application/json" -d '{"pin":"9999"}'
+$ curl -s -X POST http://localhost:8000/api/auth/login -H "Content-Type: application/json" -d '{"pin":"9999"}'
 {"access_token":"eyJ...","token_type":"bearer","user":{"id":1,"name":"Admin","role":"admin","permissions":[],"active":true}}  ✓
 
-$ curl http://localhost:8001/ | head -5
+$ curl http://localhost:8000/ | head -5
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -240,13 +244,13 @@ $ curl http://localhost:8001/ | head -5
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   ✓
 
-$ curl -s http://localhost:8001/api/menu -H "Authorization: Bearer $TOKEN"
+$ curl -s http://localhost:8000/api/menu -H "Authorization: Bearer $TOKEN"
 {"categories":[{"id":1,"name":"Coffee",...}],"products":[{"id":1,"name":"Espresso","price":2.5,...}]}  ✓
 
-$ curl -s http://localhost:8001/api/orders -H "Authorization: Bearer $TOKEN"
+$ curl -s http://localhost:8000/api/orders -H "Authorization: Bearer $TOKEN"
 [{"id":1,"number":1,"status":"open","items":[...]}]  ✓
 
-$ curl -s -X POST http://localhost:8001/api/orders/checkout -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"type":"takeaway","items":[{"product_id":1,"qty":2,"modifiers":[]}]}'
+$ curl -s -X POST http://localhost:8000/api/orders/checkout -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"type":"takeaway","items":[{"product_id":1,"qty":2,"modifiers":[]}]}'
 {"id":2,"number":2,"status":"open","total":5.75,...}  ✓
 ```
 
@@ -261,7 +265,7 @@ $ curl -s -X POST http://localhost:8001/api/orders/checkout -H "Authorization: B
 - [x] WebSocket connection status UI (Chip with Wifi/WifiOff icons)
 - [x] Automatic reconnection (1s → 30s exponential backoff, max 10 attempts)
 - [x] Heartbeat every 30s to detect dead connections
-- [x] Frontend build passes (`✓ built in 7.96s`)
+- [x] Frontend build passes (`✓ built in 7.55s`)
 - [x] Kitchen/Bar latency: 5000ms (polling) → <50ms (WebSocket) — **100x faster**
 - [x] Network traffic: 12 reqs/min × 2 terminals → ~2 msgs/min — **6x less**
 
@@ -278,40 +282,58 @@ $ curl -s -X POST http://localhost:8001/api/orders/checkout -H "Authorization: B
 - [x] Documented theme customization (runtime settings, persistence, reset)
 - [x] Documented implementation checklist for page development
 
+### M15 — WebSocket Extended to All Pages (Complete)
+- [x] Table View: added `wsConnected` state + connection status indicator (Wifi/WifiOff chip)
+- [x] Table View: WS events (`table_*`, `order_*`) trigger data refresh with proper `ws_connected`/`ws_disconnected` handling
+- [x] Order Page: added `wsConnected` state + floating connection status indicator
+- [x] Order Page: added 10s fallback polling when WS disconnected and bill is loaded
+- [x] Order Page: WS listener now handles `ws_connected`/`ws_disconnected` events
+- [x] Cashier Page: added full WebSocket support (was polling-only before)
+- [x] Cashier Page: added `wsConnected` state + connection status indicator
+- [x] Cashier Page: subscribes to `table_*` and `order_*` events
+- [x] Cashier Page: replaced blind 10s polling with event-driven WS + fallback
+- [x] All 5 operational pages now have real-time sync + connection status indicator
+- [x] Frontend build passes (`✓ built in 7.55s`)
+- [x] TypeScript check clean (`npx tsc --noEmit` — 0 errors)
+
 ---
 
 ## What's Done
 
 - Modular registry architecture (frontend + backend)
-- Module-driven routing with 10+ feature modules
+- Module-driven routing with 11 feature modules
 - i18n module with en.ts/id.ts translations
 - Feature flags (ENABLED_MODULES)
 - v1 backend fully migrated (models, schemas, services, all API routes, WS)
 - v1 frontend structure migrated (Shell, App, all module placeholders)
-- All POS workflows: cashier, waiter, kitchen, bar, admin, settings, void
+- All POS workflows: table view, order, kitchen, bar, admin, settings, void
 - Full CRUD for categories, products, users, tables, roles
 - Reports: sales summary, sales by category, item sales, payment methods, bill history
 - Light theme UI (no dark mode)
 - Role-based navigation and permission filtering
 - Login with PIN-based auth and role-based redirect
 - Build passes, all modules import clean
-- Backend running on :8001 serving frontend as static files
-- **WebSocket real-time sync** — Kitchen/Bar get order updates in <50ms (100x faster than 5s polling)
+- Backend running on :8000 serving frontend as static files
+- Table view as default landing screen with section grouping
+- Payment processing state machine (M35): duplicate prevention, retry, provider tracking
+- COGS tracking (M27): per-product cost for profit calculation
+- Order approval toggle: admin can require kitchen acceptance before billing
+- Database portability: URL editor, reload, reset, export/import
+- **WebSocket real-time sync** — All 5 operational pages (Table View, Order, Kitchen, Bar, Cashier) receive real-time updates
   - Auto-reconnect with exponential backoff
   - Fallback polling on disconnect
-  - Connection status indicator
+  - Connection status indicator on every page
   - Redux-driven state for consistency
 
 ## What's Next
-- [ ] Extend WebSocket to POS/Cashier page (real-time bill updates)
-- [ ] Extend WebSocket to Table View (real-time table status)
 - [ ] Optimize: dispatch Redux directly instead of fallback API calls (50% fewer requests)
-- [ ] Printer integration (thermal receipt printing via ESC/POS)
+- [ ] Printer integration (thermal receipt printing via ESC/POS) — infrastructure exists, needs physical printer testing
 - [ ] Reports dashboard with charts (recharts integration)
 - [ ] Dashboard page with stats overview
 - [ ] Permission system UI for custom user permissions
 - [ ] Bill history with filters (date range, status, station)
 - [ ] Offline queue: IndexedDB + sync on reconnect
+- [ ] UI Design Rule compliance migration (incremental, file by file)
 
 ---
 

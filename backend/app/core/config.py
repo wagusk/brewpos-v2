@@ -50,6 +50,23 @@ def get_text_size() -> float:
     return float(_load_persisted().get("text_size", DEFAULT_TEXT_SIZE))
 
 
+def get_order_approval_required() -> bool:
+    """Whether orders must be accepted by bar/kitchen before closing.
+
+    When True (default), a non-empty order in 'open' status cannot be
+    closed — it must first be accepted by a station (bar or kitchen).
+    When False, waiters/cashiers can close bills immediately after
+    sending them to the kitchen without waiting for approval.
+    """
+    return bool(_load_persisted().get("order_approval_required", True))
+
+
+def set_order_approval_required(value: bool) -> None:
+    data = _load_persisted()
+    data["order_approval_required"] = bool(value)
+    _persist(data)
+
+
 def set_text_size(size: float) -> None:
     data = _load_persisted()
     data["text_size"] = max(0.8, min(1.5, float(size)))

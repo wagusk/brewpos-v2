@@ -173,18 +173,23 @@ export default function MenuGrid({
           gridTemplateColumns: `repeat(auto-fill, minmax(${c.ui.minTouchTarget * 4}px, 1fr))`,
           gap: `${c.ui.cardGap}px`,
         }}>
-          {filtered.map(product => (
-            <POSCard
-              key={product.id}
-              clickable
-              onClick={() => onProductClick(product)}
-              variant="default"
-              padding={0}
-              style={{
-                minHeight: c.ui.minTouchTarget * 3,
-                overflow: 'hidden',
-              }}
-            >
+          {filtered.map(product => {
+            const cat = categories.find(cat => cat.id === product.category_id);
+            const catColor = cat ? categoryColor(cat) : c.button;
+            return (
+              <POSCard
+                key={product.id}
+                clickable
+                onClick={() => onProductClick(product)}
+                variant="default"
+                padding={0}
+                style={{
+                  minHeight: c.ui.minTouchTarget * 3,
+                  overflow: 'hidden',
+                  backgroundColor: catColor + '80',
+                  border: `1px solid ${catColor}`,
+                }}
+              >
               {product.image ? (
                 <div
                   style={{
@@ -205,13 +210,15 @@ export default function MenuGrid({
                   ${product.price.toFixed(2)}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: c.ui.spacingBase * 0.75, flexWrap: 'wrap' }}>
-                  <POSChip
-                    variant="station"
-                    stationType={(product.kind || 'kitchen') as 'kitchen' | 'bar' | 'both'}
-                    size="sm"
-                  >
-                    {STATION_LABELS[product.kind || ''] || 'Kitchen'}
-                  </POSChip>
+                  {cat && (
+                    <POSChip
+                      variant="default"
+                      size="sm"
+                      style={{ backgroundColor: catColor + '20', color: catColor, borderColor: catColor + '40', fontWeight: 600 }}
+                    >
+                      {cat.name}
+                    </POSChip>
+                  )}
                   {product.modifier_groups.length > 0 && (
                     <POSChip
                       variant="default"
@@ -223,7 +230,8 @@ export default function MenuGrid({
                 </div>
               </div>
             </POSCard>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

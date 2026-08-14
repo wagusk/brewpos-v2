@@ -178,6 +178,23 @@ export const id: Translations = {
   'error.forbidden': 'Dilarang',
   'success.saved': 'Berhasil disimpan',
   'success.deleted': 'Berhasil dihapus',
+
+  // Ordering
+  'order.sendToKitchen': 'Kirim ke Dapur',
+  'pos.holdSave': 'Tahan / Simpan',
+  'pos.loadMenuFailed': 'Gagal memuat menu',
+  'pos.loadBillFailed': 'Gagal memuat tagihan',
+  'order.itemAdded': 'Ditambahkan {name}',
+  'order.sendOrderFailed': 'Gagal mengirim pesanan',
+  'order.holdSaved': 'Tagihan disimpan',
+  'order.holdBillFailed': 'Gagal menyimpan tagihan',
+  'order.itemsAppended': 'Menambahkan item ke tagihan #{number}',
+  'order.appendFailed': 'Gagal menambahkan item',
+  'order.requestPayment': 'Minta Pembayaran',
+  'order.noBill': 'Tidak ada tagihan aktif',
+  'order.noNewItems': 'Tidak ada item baru - tagihan sudah ada di dapur',
+  'order.tableHasOpenBill': 'Meja sudah memiliki tagihan terbuka #{number}. Memuat tagihan yang ada.',
+  'order.billPaid': 'Tagihan lunas — kembali ke tampilan meja',
   // M35 - Payment processing
   'payment.title': 'Pembayaran',
   'payment.method': 'Metode pembayaran',

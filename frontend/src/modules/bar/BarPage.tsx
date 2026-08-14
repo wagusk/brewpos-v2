@@ -7,20 +7,21 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useTheme } from '../../core/theme/monoTheme';
-import { POSCard, POSChip, POSIcon } from '../../components';
-import { LocalBar, Wifi, WifiOff } from '@mui/icons-material';
+import { POSCard, POSIcon } from '../../components';
+import { LocalBar } from '@mui/icons-material';
 import { api } from '../../core/api';
-import { isWebSocketConnected, onWebSocketMessage } from '../../core/ws';
+import { onWebSocketMessage } from '../../core/ws';
 import { RootState } from '../../core/store';
+import { ordersSlice } from '../../core/store/ordersSlice';
 import OrderList from '../../shared/orderlist/OrderList';
 import { useNotifications, Toasts } from '../../shared/notifications/useNotifications';
 
 export default function BarPage() {
   const [loading, setLoading] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
   const c = useTheme();
+  const dispatch = useDispatch();
   const notifications = useNotifications();
   const orders = useSelector((state: RootState) => {
     const allOrders = Object.values(state.orders.orders);
@@ -29,25 +30,21 @@ export default function BarPage() {
 
   useEffect(() => {
     loadOrders();
-    const unsubscribe = onWebSocketMessage((event, data) => {
-      if (event === 'ws_connected') {
-        setWsConnected(true);
-        loadOrders();
-      } else if (event === 'ws_disconnected') {
-        setWsConnected(false);
-      } else if (event === 'order_created' || event === 'order_updated' || event === 'order_accepted') {
+    const unsubscribe = onWebSocketMessage((event) => {
+      if (event === 'order_created' || event === 'order_updated' || event === 'order_accepted') {
         loadOrders();
       }
     });
-    const pollInterval = setInterval(() => {
-      if (!wsConnected) loadOrders();
-    }, 30000);
-    setWsConnected(isWebSocketConnected());
-    return () => { unsubscribe(); clearInterval(pollInterval); };
+    return () => { unsubscribe(); };
   }, []);
 
   const loadOrders = async () => {
-    try { await api.listOrders(); } catch { /* ignore */ }
+    try {
+      const orders = await api.listOrders();
+      if (Array.isArray(orders)) {
+        dispatch(ordersSlice.actions.setOrders(orders));
+      }
+    } catch { /* ignore */ }
   };
 
   const acceptOrder = async (orderId: number) => {
@@ -87,10 +84,6 @@ export default function BarPage() {
             Bar Display
           </span>
         </div>
-        <POSChip variant={wsConnected ? 'status' : 'status'} size="sm" status={wsConnected ? 'ready' : 'pending'}>
-          <POSIcon icon={wsConnected ? <Wifi /> : <WifiOff />} size="sm" />
-          {wsConnected ? 'Connected' : 'Disconnected'}
-        </POSChip>
       </POSCard>
 
       <OrderList orders={orders} loading={loading} station="bar" onAccept={acceptOrder} onMarkItemStatus={markItemStatus} />

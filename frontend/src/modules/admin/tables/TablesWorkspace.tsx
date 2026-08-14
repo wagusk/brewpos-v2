@@ -1,22 +1,10 @@
-/**
- * TablesWorkspace — admin 3-column layout for table CRUD.
- * Real-time sync via WebSocket with Table View.
- *
- * Pattern: matches v1 Admin > Users workspace
- *   Col 2 (25%) — STATUS filter (All / Active / Inactive)
- *   Col 3 (25%) — table list with New + search, click to select
- *   Col 4 (50%) — DETAIL (read-only rows + Edit / Delete actions)
- *
- * State: Redux + WebSocket for real-time sync with Table View
- */
-
 import { useState, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Search as SearchIcon, TableRestaurant as TableIcon,
 } from '@mui/icons-material';
-import { POSCard, POSButton, POSTextField, POSChip, POSIcon } from '../../../components';
+import { POSCard, POSButton, POSTextField, POSChip, POSIcon, POSSelect } from '../../../components';
 import { api } from '../../../core/api';
 import { useTheme } from '../../../core/theme/monoTheme';
 import { t } from '../../multilingual/i18n';
@@ -42,8 +30,9 @@ export default function TablesWorkspace() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editing, setEditing] = useState<any>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<{ name: string; seats: number; active: boolean }>({
-    name: '', seats: 4, active: true,
+  const [sections, setSections] = useState<{ name: string; color: string }[]>([]);
+  const [form, setForm] = useState<{ name: string; seats: number; active: boolean; section: string; sort: number }>({
+    name: '', seats: 4, active: true, section: 'Main Hall', sort: 0,
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -52,8 +41,8 @@ export default function TablesWorkspace() {
   const loadTables = async () => {
     setLoading(true);
     try {
-      const data = await api.getAdminTables();
-      dispatch(tablesSlice.actions.setTables(data));
+      const data = await api.getTables();
+      dispatch(tablesSlice.actions.setTables(Array.isArray(data) ? data : []));
     } catch (e: any) {
       setError(e.message || t('error.generic'));
     } finally {
@@ -61,23 +50,31 @@ export default function TablesWorkspace() {
     }
   };
 
+  const loadSections = async () => {
+    try {
+      const res = await api.getTableSections();
+      if (res && Array.isArray(res.sections)) {
+        setSections(res.sections);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     loadTables();
+    loadSections();
 
     // Subscribe to WebSocket table events
     const unsubscribe = onWebSocketMessage((event, data) => {
       if (event === 'table_created' || event === 'table_updated') {
-        console.log('[Admin] Table update:', event, data);
         dispatch(tablesSlice.actions.addOrUpdate(data));
       } else if (event === 'table_deleted') {
-        console.log('[Admin] Table deleted:', data);
         dispatch(tablesSlice.actions.removeTable(data.id));
         if (selectedId === data.id) setSelectedId(null);
       }
     });
 
     return () => unsubscribe();
-  }, [dispatch]);
+  }, [dispatch, selectedId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -101,19 +98,25 @@ export default function TablesWorkspace() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', seats: 4, active: true });
+    setForm({ name: '', seats: 4, active: true, section: sections[0]?.name || 'Main Hall', sort: 0 });
     setCreating(true);
   };
 
-  const openEdit = (tbl: Table) => {
+  const openEdit = (tbl: any) => {
     setEditing(tbl);
-    setForm({ name: tbl.name, seats: tbl.seats, active: tbl.active });
+    setForm({
+      name: tbl.name,
+      seats: tbl.seats,
+      active: tbl.active,
+      section: tbl.section || 'Main Hall',
+      sort: tbl.sort || 0,
+    });
   };
 
   const closeDialog = () => {
     setEditing(null);
     setCreating(false);
-    setForm({ name: '', seats: 4, active: true });
+    setForm({ name: '', seats: 4, active: true, section: 'Main Hall', sort: 0 });
   };
 
   const handleSave = async () => {
@@ -127,6 +130,8 @@ export default function TablesWorkspace() {
           name: form.name.trim(),
           seats: form.seats,
           active: form.active,
+          section: form.section,
+          sort: form.sort,
         });
         setSuccess(t('success.updated'));
       } else {
@@ -134,6 +139,8 @@ export default function TablesWorkspace() {
           name: form.name.trim(),
           seats: form.seats,
           active: form.active,
+          section: form.section,
+          sort: form.sort,
         });
         setSuccess(t('success.saved'));
       }
@@ -144,7 +151,7 @@ export default function TablesWorkspace() {
     }
   };
 
-  const handleDelete = async (tbl: Table) => {
+  const handleDelete = async (tbl: any) => {
     if (!window.confirm(t('tables.confirmDelete').replace('{name}', tbl.name))) return;
     try {
       await api.deleteTable(tbl.id);
@@ -156,7 +163,6 @@ export default function TablesWorkspace() {
     }
   };
 
-  // ───── Styles (all from theme) ─────
   const colStyle: React.CSSProperties = {
     padding: `${c.ui.cardPadding}px`,
     backgroundColor: c.card,
@@ -189,6 +195,11 @@ export default function TablesWorkspace() {
     border: `1px solid ${active ? c.buttonBorder : 'transparent'}`,
     minHeight: c.ui.minTouchTarget,
   });
+
+  const sectionOptions = (sections.length > 0 ? sections : [{ name: 'Main Hall', color: '#5b8def' }, { name: 'Patio', color: '#10b981' }, { name: 'Bar', color: '#f59e0b' }, { name: 'Private', color: '#a855f7' }]).map(s => ({
+    label: s.name,
+    value: s.name,
+  }));
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '25% 25% 1fr', gap: `${c.ui.cardGap}px`, height: '100%', padding: `${c.ui.cardPadding}px` }}>
@@ -259,7 +270,7 @@ export default function TablesWorkspace() {
               {t('common.empty')}
             </span>
           )}
-          {filtered.map((tbl) => {
+          {filtered.map((tbl: any) => {
             const active = selectedId === tbl.id;
             return (
               <POSCard
@@ -281,8 +292,8 @@ export default function TablesWorkspace() {
                   <span style={{ fontSize: c.fontSize('body1'), fontWeight: active ? 700 : 500, color: active ? c.buttonText : c.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {tbl.name}
                   </span>
-                  <span style={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext }}>
-                    {tbl.seats} {t('tables.seats')}
+                  <span style={{ fontSize: c.fontSize('caption'), color: active ? c.buttonText : c.subtext, display: 'block' }}>
+                    {tbl.section || 'Main Hall'} · {tbl.seats} {t('tables.seats')}
                   </span>
                 </div>
               </POSCard>
@@ -335,6 +346,8 @@ export default function TablesWorkspace() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${c.ui.listGap}px` }}>
             <DetailRow label={t('common.name')} value={selected.name} />
             <DetailRow label={t('tables.seats')} value={String(selected.seats)} />
+            <DetailRow label="Section" value={selected.section || 'Main Hall'} />
+            <DetailRow label="Sort Order" value={String(selected.sort ?? 0)} />
             <div style={{ display: 'flex', alignItems: 'center', gap: `${c.ui.listGap}px` }}>
               <span style={{ fontSize: c.fontSize('body2'), color: c.subtext, minWidth: 100 }}>
                 {t('common.status')}
@@ -396,6 +409,22 @@ export default function TablesWorkspace() {
                 type="number"
                 value={String(form.seats)}
                 onChange={(val: string) => setForm({ ...form, seats: Math.max(1, parseInt(val) || 1) })}
+                size="sm"
+                fullWidth
+              />
+              <POSSelect
+                label="Section"
+                value={form.section}
+                onChange={(val: any) => setForm({ ...form, section: val })}
+                options={sectionOptions}
+                size="sm"
+                fullWidth
+              />
+              <POSTextField
+                label="Sort Order"
+                type="number"
+                value={String(form.sort)}
+                onChange={(val: string) => setForm({ ...form, sort: parseInt(val) || 0 })}
                 size="sm"
                 fullWidth
               />

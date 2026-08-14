@@ -22,6 +22,8 @@ from app.modules.payment.service import (
     initiate_payment, confirm_payment, retry_payment, cancel_payment,
     get_payment, list_order_payments, PaymentError,
 )
+from app.ws import manager
+from app.services import get_order, to_order_out
 
 log = logging.getLogger("brewpos.payment")
 router = APIRouter(prefix="/api/payments", tags=["payments"])
@@ -50,6 +52,12 @@ async def confirm(
         payment = confirm_payment(db, payload.payment_id)
     except PaymentError as e:
         raise HTTPException(400, str(e))
+    # Broadcast the order update so all terminals (Table View, Order page,
+    # cashier) refresh their bill/table state in real time.
+    if payment.status == "completed":
+        order = get_order(db, payment.order_id)
+        if order:
+            await manager.broadcast("order_updated", to_order_out(order).model_dump())
     return PaymentOut.model_validate(payment)
 
 

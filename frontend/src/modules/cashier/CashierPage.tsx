@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../core/theme/monoTheme';
 import { useCashierLayout } from './layoutConfig';
 import { api } from '../../core/api';
+import { onWebSocketMessage } from '../../core/ws';
 import TableFloor, { type Table } from './tableview/TableView';
 import ConfirmDialog from '../../shared/dialog/ConfirmDialog';
 import { useNotifications, Toasts } from '../../shared/notifications/useNotifications';
@@ -41,13 +42,29 @@ export default function CashierPage() {
   useEffect(() => {
     setLoading(true);
     loadTables();
-    const id = window.setInterval(loadTables, 10000);
+
+    const unsubscribe = onWebSocketMessage((event) => {
+      if (event === 'ws_connected') {
+        loadTables();
+      } else if (
+        event === 'table_created' ||
+        event === 'table_updated' ||
+        event === 'table_deleted' ||
+        event === 'order_created' ||
+        event === 'order_updated' ||
+        event === 'order_closed' ||
+        event === 'order_cancelled'
+      ) {
+        loadTables();
+      }
+    });
+
     const onFocus = () => { loadTables(); };
     const onVisibility = () => { if (document.visibilityState === 'visible') loadTables(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.clearInterval(id);
+      unsubscribe();
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };

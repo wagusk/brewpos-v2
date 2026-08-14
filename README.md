@@ -23,46 +23,51 @@ frontend/src/
 │   ├── App.tsx              # Module-driven router
 │   └── moduleRegistry.ts    # Central module manifest
 ├── core/                    # Cross-cutting infrastructure
-│   ├── Shell.tsx
-│   ├── store/
-│   ├── theme/
-│   └── ws/
-├── modules/                 # Feature modules (each self-contained)
-│   ├── auth/               # Login, session, JWT
-│   ├── cashier/            # Cashier workspace
-│   ├── waiter/             # Waiter workspace
-│   ├── kitchen/            # Kitchen display
-│   ├── bar/                # Bar display
-│   ├── admin/              # Admin CRUD, reports
-│   ├── settings/           # Device/environment config
-│   ├── discount/           # Discount module (pluggable)
-│   ├── void/               # Void module (pluggable)
-│   ├── multilingual/       # i18n module (pluggable)
-│   │   └── i18n/
-│   │       ├── en.ts
-│   │       ├── id.ts
-│   │       └── useT.ts
-│   └── dashboard/          # Dashboard overview
-└── types/                  # Shared TS types
+│   ├── api.ts               # API client (Bearer auth)
+│   ├── ws.ts                # WebSocket client (auto-reconnect)
+│   ├── permissions.ts       # usePermissions hook
+│   ├── store/               # Redux Toolkit store
+│   └── theme/               # Light theme tokens (monoTheme)
+├── components/              # Shared POS components
+│   ├── Shell.tsx            # Full-screen layout with TopBar + nav
+│   ├── POSCard.tsx
+│   ├── POSButton.tsx
+│   ├── POSTextField.tsx
+│   ├── POSChip.tsx
+│   └── POSIcon.tsx
+├── shared/                  # Shared UI patterns (dialog, header, keypad, etc.)
+└── modules/                 # Feature modules (each self-contained)
+    ├── auth/                # Login (PIN pad, role-based redirect)
+    ├── tables/              # Table view (default landing screen)
+    ├── order/               # Order page (menu, cart, checkout)
+    ├── cashier/             # Cashier workspace (legacy)
+    ├── payment/             # Payment dialog (close-bill flow)
+    ├── kitchen/             # Kitchen display (ticket board)
+    ├── bar/                 # Bar display (filtered tickets)
+    ├── admin/               # Admin CRUD + reports
+    ├── settings/            # Tax, printer, discount, database, UI config
+    ├── discount/            # Bill history viewer
+    ├── void/                # Void bills with reason
+    └── multilingual/        # i18n module (en.ts, id.ts)
 ```
 
 ### Backend
 ```
 backend/app/
 ├── main.py                  # App entry; loads modules dynamically
-├── core/                    # config, security, permissions, db
+├── core/                    # config, security, permissions
 ├── db/                      # session, seed
-├── models/                  # ORM models
+├── models/                  # ORM models (11 tables)
 ├── schemas/                 # Pydantic DTOs
+├── services/                # Business logic (crud, printer, escpos, tickets)
 ├── modules/                 # Self-contained FastAPI routers
-│   ├── orders/router.py
-│   ├── discount/router.py
-│   ├── void/router.py
-│   ├── printer/router.py
 │   ├── auth/router.py
 │   ├── menu/router.py
+│   ├── orders/router.py
 │   ├── admin/router.py
 │   ├── settings/router.py
+│   ├── printer/router.py
+│   ├── payment/router.py
 │   └── i18n/router.py
 └── ws/hub.py               # WebSocket endpoint
 ```
@@ -90,13 +95,14 @@ Backend modules export a FastAPI `router` and are loaded via `ENABLED_MODULES` f
 
 ## Features
 
-- **Multi-terminal sync** — Cashier, Waiter, Kitchen, Bar terminals see the same orders in real time via WebSocket
+- **Multi-terminal sync** — All pages (Table View, Order, Kitchen, Bar, Cashier) receive real-time updates via WebSocket with connection status indicators and automatic fallback polling
 - **Touch-friendly UI** — Big buttons (48–72px), grid layout, 12px rounded corners, light theme
 - **Roles** — `admin`, `master`, `cashier`, `waiter`, `kitchen`, `bar` with granular permissions
 - **PIN login** — Tap a 4–8 digit PIN, no usernames/passwords
+- **Table view** — Visual table overview grouped by section (default landing screen)
 - **Modifiers** — Required/single-select & optional/multi-select groups per product
-- **Tables** — Floor-plan view with open-bill color coding
 - **Payments** — Cash / card / mobile with tendered + change
+- **Payment processing state machine** — Duplicate prevention, retry, provider tracking
 - **Station routing** — Products route to kitchen, bar, or both
 - **Station-isolated serving** — Kitchen and bar operate independently
 - **Single-bill-per-table** — Only one open bill per table
@@ -105,6 +111,8 @@ Backend modules export a FastAPI `router` and are loaded via `ENABLED_MODULES` f
 - **Multiple taxes** — Custom names and rates, stacked calculation
 - **Discount presets** — Fixed or percent, configurable by admin
 - **Order voiding** — Admin can void any order (stays in DB, status=void)
+- **COGS tracking** — Per-product cost for profit calculation in reports
+- **Order approval toggle** — Admin can require kitchen acceptance before billing
 - **Printer integration** — ESC/POS, network/usb/dummy modes
 - **Multilingual UI** — English + Bahasa Indonesia, extensible
 - **Database portability** — URL editor, reload, reset, export/import
@@ -125,9 +133,9 @@ cd Brew-POS-V2
 
 | Role | PIN | What they see |
 |------|-----|---------------|
-| Admin | `9999` | Dashboard with live stats, reports, user/product/table/role management |
-| Cashier | `1111` | Floor plan + bill view. Open bills, pay, reprint receipts |
-| Waiter | `2222` | Floor-plan view, take orders, add to existing bills, send to kitchen |
+| Admin | `9999` | Table overview, reports, user/product/table/role management |
+| Cashier | `1111` | Table view + bill view. Open bills, pay, reprint receipts |
+| Waiter | `2222` | Table view, take orders, add to existing bills, send to kitchen |
 | Kitchen | `3333` | Live ticket board, mark items ready/served |
 | Bar | `3333` | Live drink ticket board, independent from kitchen |
 
@@ -154,6 +162,7 @@ That's it. No touching core files.
 | `BREWPOS_JWT_EXPIRE_MINUTES` | `720` | Token lifetime (12 h) |
 | `BREWPOS_HOST` | `0.0.0.0` | Bind host |
 | `BREWPOS_PORT` | `8000` | Bind port |
+| `BREWPOS_SETTINGS_FILE` | `backend/brewpos.settings.json` | Persisted settings file |
 
 ---
 
@@ -171,6 +180,12 @@ Waiter                    Kitchen / Bar              Cashier
   │                           │                         ├─ Pay Bill → paid
   │                           │                         └─ Receipt
 ```
+
+---
+
+## Database
+
+11 tables: `roles`, `users`, `categories`, `products`, `modifier_groups`, `modifier_options`, `tables`, `orders`, `order_items`, `order_item_modifiers`, `payments`
 
 ---
 
