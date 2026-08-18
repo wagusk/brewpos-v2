@@ -1,8 +1,13 @@
 """Seed a cafe menu + 3 users + 8 tables. Re-runnable: idempotent on PIN."""
 from __future__ import annotations
 from app.db.session import Base, current_engine, SessionLocal
-from app.models import User, Role, Category, Product, ModifierGroup, ModifierOption, Table
+from app.modules.users.models import User
+from app.modules.roles.models import Role
+from app.modules.menu.models import Category, Product, ModifierGroup, ModifierOption
+from app.modules.tables.models import Table
 from app.core.security import hash_pin
+from app.core.permissions import default_permissions
+from sqlalchemy import text
 
 
 SEED_ROLES = [
@@ -25,18 +30,18 @@ SEED_USERS = [
 
 SEED_CATEGORIES = [
     # name, icon, color, sort, kind
-    ("Coffee", "local_cafe", "#8B5A2B", 0, "bar"),
-    ("Tea", "emoji_food_beverage", "#2E7D32", 1, "bar"),
-    ("Pastries", "bakery_dining", "#D17A22", 2, "kitchen"),
-    ("Sandwiches", "lunch_dining", "#5B8DEF", 3, "kitchen"),
-    ("Cold Drinks", "local_bar", "#9C27B0", 4, "bar"),
-    ("Desserts", "icecream", "#E91E63", 5, "kitchen"),
+    ("Coffee", "local_cafe", "#FFB000", 0, "bar"),       # Amber
+    ("Tea", "emoji_food_beverage", "#00FF85", 1, "bar"),  # Neon Green
+    ("Pastries", "bakery_dining", "#FF6600", 2, "kitchen"), # Orange
+    ("Sandwiches", "lunch_dining", "#0066FF", 3, "kitchen"), # Neon Blue
+    ("Cold Drinks", "local_bar", "#00F0FF", 4, "bar"),    # Cyan
+    ("Desserts", "icecream", "#FF00A8", 5, "kitchen"),    # Hot Pink
     # M23 — Combo category shows up on BOTH kitchen and bar displays so
     # a single order can have items only the kitchen sees (food), items
     # only the bar sees (drinks), and items both stations must work on
     # together (a combo plate). Real cafés use this for "burger + drink"
     # combos where both prep lines need to coordinate.
-    ("Combos", "restaurant_menu", "#FF9800", 6, "both"),
+    ("Combos", "restaurant_menu", "#B000FF", 6, "both"),  # Purple
 ]
 
 
@@ -95,15 +100,24 @@ def run():
     Base.metadata.create_all(bind=current_engine())
     db = SessionLocal()
     try:
+        try:
+            db.execute(text("ALTER TABLE roles ADD COLUMN permissions JSON"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # Roles
         for name, label, color, sort in SEED_ROLES:
             existing = db.query(Role).filter(Role.name == name).first()
+            perms = default_permissions(name)
             if existing:
                 existing.label = label
                 existing.color = color
                 existing.sort = sort
+                if not existing.permissions:
+                    existing.permissions = perms
             else:
-                db.add(Role(name=name, label=label, color=color, sort=sort))
+                db.add(Role(name=name, label=label, color=color, sort=sort, permissions=perms))
 
         # Users
         for name, pin, role in SEED_USERS:
@@ -123,10 +137,11 @@ def run():
                 c = Category(name=name, icon=icon, color=color, sort=sort, kind=kind)
                 db.add(c)
                 db.flush()
-            elif c.kind != kind:
-                # Backfill the station assignment on existing seeded categories
-                # so a re-seed picks up the new kitchen/bar split.
-                c.kind = kind
+            else:
+                if c.kind != kind:
+                    c.kind = kind
+                if c.color != color:
+                    c.color = color
             cat_index[name] = c
 
         # Products + modifier groups

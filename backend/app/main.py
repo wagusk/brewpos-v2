@@ -1,21 +1,24 @@
 """
-Brew-POS v2 — Modular Backend
-
-Each module is a self-contained FastAPI router.
-Adding a feature = create folder + register in MODULE_REGISTRY.
+Brew-POS v2 — Modular Backend API
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 import logging
 import sys
 
 from app.core.config import settings
 from app.db.session import current_engine, Base, SessionLocal
 from app.db.seed import run as run_seed
-from app.models import User as UserModel
+from app.modules.users.models import User as UserModel
+from app.modules.roles.models import Role
+from app.modules.menu.models import Category, Product, ModifierGroup, ModifierOption
+from app.modules.tables.models import Table
+from app.modules.orders.models import Order, OrderItem, OrderItemModifier
+from app.modules.payment.models import Payment
+from app.modules.inventory.models import StockItem
+from app.modules.vouchers.models import Voucher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +36,10 @@ MODULE_REGISTRY: dict[str, str] = {
     "printer": "app.modules.printer.router",
     "i18n": "app.modules.i18n.router",
     "payment": "app.modules.payment.router",
+    "tax": "app.modules.tax.router",
+    "discount": "app.modules.discount.router",
+    "inventory": "app.modules.inventory.router",
+    "vouchers": "app.modules.vouchers.router",
 }
 
 ENABLED_MODULES: dict[str, bool] = {
@@ -44,6 +51,10 @@ ENABLED_MODULES: dict[str, bool] = {
     "printer": True,
     "i18n": True,
     "payment": True,
+    "tax": True,
+    "discount": True,
+    "inventory": True,
+    "vouchers": True,
 }
 
 
@@ -76,11 +87,7 @@ def _bootstrap_default_admin() -> None:
 
 Base.metadata.create_all(bind=current_engine())
 
-# M28 - additive column migrations for the Table Overview screen.
-# `Base.metadata.create_all` creates missing tables but won't ALTER
-# existing ones, so new columns on the `tables` table must be added
-# manually here. Safe to run repeatedly — each statement is wrapped
-# in try/except because the column may already exist.
+# M28 - additive column migrations for tables
 from sqlalchemy import text
 with current_engine().begin() as _migrate:
     for _col, _ddl in (
@@ -92,8 +99,7 @@ with current_engine().begin() as _migrate:
         except Exception:
             pass
 
-# M35 — additive column migrations for the Payment processing state machine.
-# New columns: status, provider, external_id, error_message, amount_validated, updated_at.
+# M35 — additive column migrations for payment processing
 with current_engine().begin() as _migrate:
     for _col, _ddl in (
         ("status",          "VARCHAR(20) DEFAULT 'pending'"),
@@ -124,9 +130,31 @@ app.add_middleware(
 # Load all enabled modules
 load_modules(app)
 
+# Serve the compiled frontend when it is available. The API remains usable as
+# a backend-only service when no frontend build has been produced yet.
+_frontend_index = settings.frontend_dist / "index.html"
+if _frontend_index.exists():
+    _frontend_assets = settings.frontend_dist / "assets"
+    if _frontend_assets.exists():
+        app.mount("/assets", StaticFiles(directory=_frontend_assets), name="frontend-assets")
+
 # WebSocket
 from app.ws.hub import router as ws_router
 app.include_router(ws_router)
+
+
+@app.get("/")
+def index():
+    if _frontend_index.exists():
+        return FileResponse(_frontend_index)
+    return JSONResponse({
+        "app": settings.app_name,
+        "version": "2.0.0",
+        "description": "Brew-POS v2 Modular Backend API Service (Backend Only)",
+        "api_docs": "/docs",
+        "health": "/health",
+        "modules": list(ENABLED_MODULES.keys()),
+    })
 
 
 @app.get("/health")
@@ -139,31 +167,9 @@ def list_modules():
     return {"modules": [{"key": k, "enabled": v} for k, v in ENABLED_MODULES.items()]}
 
 
-# --- Static frontend (must be AFTER all api routes) ---
-FRONTEND_DIST = settings.frontend_dist
-if FRONTEND_DIST.exists():
-    assets = FRONTEND_DIST / "assets"
-    if assets.exists():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
-
-    @app.get("/")
-    def index():
-        return FileResponse(FRONTEND_DIST / "index.html")
-
-    @app.get("/{full_path:path}")
-    def spa_fallback(full_path: str):
-        if full_path.startswith(("api", "ws", "docs", "openapi", "health", "assets")):
-            return JSONResponse({"detail": "Not Found"}, status_code=404)
-        file = FRONTEND_DIST / full_path
-        if file.is_file():
-            return FileResponse(file)
-        return FileResponse(FRONTEND_DIST / "index.html")
-else:
-    @app.get("/")
-    def no_frontend():
-        return JSONResponse({
-            "app": settings.app_name,
-            "version": "2.0.0",
-            "message": "Frontend not built. Run `npm install && npm run build` in frontend/",
-            "api_docs": "/docs",
-        })
+@app.get("/{path:path}", include_in_schema=False)
+def frontend_fallback(path: str):
+    """Support browser-side navigation for the compiled frontend SPA."""
+    if _frontend_index.exists() and not path.startswith(("api/", "docs", "openapi.json", "health", "ws")):
+        return FileResponse(_frontend_index)
+    return JSONResponse({"detail": "Not found"}, status_code=404)

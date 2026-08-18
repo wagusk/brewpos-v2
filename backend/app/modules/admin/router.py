@@ -25,6 +25,12 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 # ---------- Roles ----------
 
+@router.get("/permissions")
+def list_permissions_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+    from app.core.permissions import PERMISSIONS
+    return {"permissions": list(PERMISSIONS)}
+
+
 @router.get("/roles", response_model=list[RoleOut])
 def list_roles_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
     return [RoleOut.model_validate(r) for r in crud.list_roles(db)]
@@ -35,13 +41,13 @@ def create_role_endpoint(payload: RoleIn, db: Session = Depends(get_db), user: U
     existing = db.scalar(select(Role).where(Role.name == payload.name))
     if existing:
         raise HTTPException(400, f"Role '{payload.name}' already exists")
-    role = crud.create_role(db, name=payload.name, label=payload.label, color=payload.color, sort=payload.sort)
+    role = crud.create_role(db, name=payload.name, label=payload.label, color=payload.color, sort=payload.sort, permissions=payload.permissions)
     return RoleOut.model_validate(role)
 
 
 @router.patch("/roles/{rid}", response_model=RoleOut)
 def update_role_endpoint(rid: int, payload: RoleUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
-    role = crud.update_role(db, rid, name=payload.name, label=payload.label, color=payload.color, sort=payload.sort)
+    role = crud.update_role(db, rid, name=payload.name, label=payload.label, color=payload.color, sort=payload.sort, permissions=payload.permissions)
     if not role:
         raise HTTPException(404, "Role not found")
     return RoleOut.model_validate(role)

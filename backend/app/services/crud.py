@@ -21,15 +21,16 @@ def get_role(db: Session, rid: int) -> Role | None:
     return db.get(Role, rid)
 
 
-def create_role(db: Session, *, name: str, label: str, color: str, sort: int = 0) -> Role:
-    role = Role(name=name, label=label, color=color, sort=sort)
+def create_role(db: Session, *, name: str, label: str, color: str, sort: int = 0, permissions: list[str] | None = None) -> Role:
+    perms = normalise_permissions(name, permissions) if permissions is not None else default_permissions(name)
+    role = Role(name=name, label=label, color=color, sort=sort, permissions=perms)
     db.add(role)
     db.commit()
     db.refresh(role)
     return role
 
 
-def update_role(db: Session, rid: int, *, name: str | None, label: str | None, color: str | None, sort: int | None = None) -> Role | None:
+def update_role(db: Session, rid: int, *, name: str | None, label: str | None, color: str | None, sort: int | None = None, permissions: list[str] | None = None) -> Role | None:
     role = db.get(Role, rid)
     if not role:
         return None
@@ -41,6 +42,8 @@ def update_role(db: Session, rid: int, *, name: str | None, label: str | None, c
         role.color = color
     if sort is not None:
         role.sort = sort
+    if permissions is not None:
+        role.permissions = normalise_permissions(role.name, permissions)
     db.commit()
     db.refresh(role)
     return role

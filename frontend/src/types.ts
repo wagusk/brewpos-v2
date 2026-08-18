@@ -1,0 +1,15 @@
+export type User = { id: number; name: string; role: string; permissions: string[]; active: boolean }
+export type ModuleState = { key: string; enabled: boolean }
+export type Category = { id: number; name: string; icon: string; color: string; sort: number; kind: string }
+export type ModifierOption = { id: number; name: string; price_delta: number }
+export type ModifierGroup = { id: number; name: string; required: boolean; multi: boolean; options: ModifierOption[] }
+export type Product = { id: number; name: string; description: string; price: number; category_id: number; image: string; active: boolean; cost?: number; kind?: string | null; modifier_groups: ModifierGroup[] }
+export type Menu = { categories: Category[]; products: Product[] }
+export type Table = { id: number; name: string; seats: number; active: boolean; section?: string; sort: number; order_id?: number | null; order_number?: number | null; order_status?: string | null; order_total?: number | null; items_count?: number | null; opened_at?: string | null; occupancy_seconds?: number | null; server_name?: string | null; payment_status?: string | null; paid_amount?: number | null; outstanding_amount?: number | null }
+export type Payment = { id: number; order_id: number; method: string; amount: number; tendered: number; change: number; status: string; provider: string; external_id: string; error_message: string; amount_validated: boolean; created_at: string; updated_at?: string | null }
+export type OrderItem = { id: number; product_id: number; name: string; price: number; qty: number; status: string; notes: string; sent_at?: string | null; station: string; modifiers: { id: number; name: string; price_delta: number }[] }
+export type Order = { id: number; number: number; table_id?: number | null; status: string; type: string; customer_name: string; notes: string; subtotal: number; total: number; created_at: string; updated_at: string; items: OrderItem[]; payments: Payment[] }
+export type Settings = { text_size: number; database_url: string; default_database_url: string; db_kind: string; db_file_exists: boolean; product_count: number; user_count: number; order_approval_required: boolean }
+export type PrinterSettings = { mode: string; network: Record<string, unknown>; usb: Record<string, unknown>; paper: Record<string, unknown>; auto_print: Record<string, unknown>; dry_run: boolean }
+export type DiscountPolicy = { max_discount_pct: number; presets: { label: string; mode: string; value: number }[]; require_reason: boolean }
+export type Tax = { name: string; rate: number }

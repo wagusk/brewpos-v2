@@ -160,9 +160,6 @@ class OrderOut(BaseModel):
     customer_name: str
     notes: str
     subtotal: float
-    discount: float = 0.0
-    discount_reason: str = ""
-    tax: float
     total: float
     created_at: datetime
     updated_at: datetime
@@ -179,17 +176,6 @@ class OrderStatusIn(BaseModel):
 class CloseOrderIn(BaseModel):
     payment_method: str = "cash"  # cash | card | mobile
     tendered: float = 0.0
-    # M21 — optional discount applied by the cashier at checkout.
-    # Backward compatible: existing callers who send discount +
-    # discount_reason keep working (free-form dollar discount,
-    # admins only). New `preset_label` resolves to the matching
-    # configured preset on the cashier side; the cashier converts
-    # percent presets into a resolved dollar amount via the policy
-    # API before sending. Discount reduces the taxable base so tax
-    # is charged on the discounted amount (subtotal - discount + tax).
-    discount: float = 0.0
-    discount_reason: str = ""
-    preset_label: str | None = None  # resolved server-side from policy
 
 
 class CancelOrderIn(BaseModel):
@@ -319,7 +305,7 @@ class TableUpdateIn(BaseModel):
 class UserIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     pin: str = Field(min_length=4, max_length=8)
-    role: str = Field(pattern=r"^(admin|master|cashier|waiter|kitchen|bar)$")
+    role: str = Field(min_length=1, max_length=20)
     permissions: list[str] | None = None
     active: bool = True
 
@@ -327,7 +313,7 @@ class UserIn(BaseModel):
 class UserUpdateIn(BaseModel):
     name: str | None = None
     pin: str | None = Field(default=None, max_length=8)
-    role: str | None = Field(default=None, pattern=r"^(admin|master|cashier|waiter|kitchen|bar)$")
+    role: str | None = Field(default=None, min_length=1, max_length=20)
     permissions: list[str] | None = None
     active: bool | None = None
 
@@ -339,6 +325,7 @@ class RoleOut(BaseModel):
     label: str
     color: str
     sort: int
+    permissions: list[str] = []
     active: bool = True
 
 
@@ -347,6 +334,7 @@ class RoleIn(BaseModel):
     label: str = Field(min_length=1, max_length=40)
     color: str = Field(default="#5b8def", pattern=r"^#[0-9a-fA-F]{6}$")
     sort: int = 0
+    permissions: list[str] | None = None
 
 
 class RoleUpdateIn(BaseModel):
@@ -354,6 +342,7 @@ class RoleUpdateIn(BaseModel):
     label: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     sort: int | None = None
+    permissions: list[str] | None = None
 
 
 class StatsOut(BaseModel):

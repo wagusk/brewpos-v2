@@ -1,4 +1,4 @@
-"""Settings module — tax, discount, printer, database, text-size."""
+"""Settings module — printer, database, text-size, order-approval."""
 from __future__ import annotations
 import os
 import re
@@ -8,20 +8,19 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect as sa_inspect
 
 from app.db.session import get_db, reload_engine, current_engine, Base
 from app.db.seed import run as run_seed
 from app.core.config import (
-    BACKEND_DIR, DB_PATH, SETTINGS_FILE, DEFAULT_TAXES,
-    get_active_db_url, get_tax_rate, get_taxes, set_taxes,
+    BACKEND_DIR, DB_PATH, SETTINGS_FILE,
+    get_active_db_url,
     get_text_size, set_text_size, set_active_db_url,
-    reset_persisted_settings, get_discount_policy, set_discount_policy,
+    reset_persisted_settings,
     get_order_approval_required, set_order_approval_required,
 )
-from app.core.security import current_user, require_role
+from app.core.security import current_user, require_role, require_permission
 from app.models import User as UserModel
 from app.services.crud import count_products, count_users
 from app.services.printer import (
@@ -31,22 +30,6 @@ from app.services.printer import (
 )
 
 router = APIRouter(prefix="/api/admin/settings", tags=["settings"])
-
-
-class TaxIn(BaseModel):
-    taxes: list[dict]
-
-    @field_validator("taxes")
-    @classmethod
-    def _validate_taxes(cls, v):
-        if not v:
-            raise ValueError("At least one tax is required")
-        for tax in v:
-            if "name" not in tax or "rate" not in tax:
-                raise ValueError("Each tax must have 'name' and 'rate'")
-            if not isinstance(tax["rate"], (int, float)) or tax["rate"] < 0 or tax["rate"] > 1:
-                raise ValueError(f"Tax rate must be between 0 and 1: {tax}")
-        return v
 
 
 class DatabaseUrlIn(BaseModel):
@@ -62,8 +45,6 @@ class DatabaseUrlIn(BaseModel):
 
 
 class SettingsOut(BaseModel):
-    tax_rate: float
-    taxes: list[dict]
     text_size: float
     database_url: str
     default_database_url: str
@@ -71,7 +52,6 @@ class SettingsOut(BaseModel):
     db_file_exists: bool
     product_count: int
     user_count: int
-    discount_policy: dict
     order_approval_required: bool
 
 
@@ -112,8 +92,6 @@ def _build_settings_out(db: Session) -> SettingsOut:
     url = get_active_db_url()
     fp = _file_path_for_sqlite(url)
     return SettingsOut(
-        tax_rate=get_tax_rate(),
-        taxes=get_taxes(),
         text_size=get_text_size(),
         database_url=url,
         default_database_url=f"sqlite:///{DB_PATH}",
@@ -121,37 +99,30 @@ def _build_settings_out(db: Session) -> SettingsOut:
         db_file_exists=(fp.exists() if fp else True),
         product_count=count_products(db),
         user_count=count_users(db),
-        discount_policy=get_discount_policy(),
         order_approval_required=get_order_approval_required(),
     )
 
 
 @router.get("", response_model=SettingsOut)
-def get_settings(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
-    return _build_settings_out(db)
-
-
-@router.put("/tax", response_model=SettingsOut)
-def update_tax(payload: TaxIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
-    set_taxes(payload.taxes)
+def get_settings(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("settings.view"))):
     return _build_settings_out(db)
 
 
 @router.put("/text-size", response_model=SettingsOut)
-def update_text_size(payload: dict, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_text_size(payload: dict, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     size = float(payload.get("text_size", 1.0))
     set_text_size(size)
     return _build_settings_out(db)
 
 
 @router.put("/database", response_model=SettingsOut)
-def update_database(payload: DatabaseUrlIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_database(payload: DatabaseUrlIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     set_active_db_url(payload.database_url)
     return _build_settings_out(db)
 
 
 @router.post("/database/reload", response_model=SettingsOut)
-def reload_database(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def reload_database(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     url = get_active_db_url()
     _ensure_settings_dir()
     try:
@@ -169,7 +140,7 @@ def reload_database(db: Session = Depends(get_db), user: UserModel = Depends(req
 
 
 @router.post("/database/reset", response_model=SettingsOut)
-def reset_database(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def reset_database(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     engine = current_engine()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
@@ -178,7 +149,7 @@ def reset_database(db: Session = Depends(get_db), user: UserModel = Depends(requ
 
 
 @router.post("/database/restore-defaults")
-def restore_default_settings(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def restore_default_settings(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     reset_persisted_settings()
     reload_engine()
     run_seed()
@@ -186,7 +157,7 @@ def restore_default_settings(db: Session = Depends(get_db), user: UserModel = De
 
 
 @router.get("/database/export")
-def export_database(user: UserModel = Depends(require_role("admin"))):
+def export_database(user: UserModel = Depends(require_permission("settings.view"))):
     url = get_active_db_url()
     if not url.startswith("sqlite://"):
         raise HTTPException(400, "Export is only supported for SQLite databases.")
@@ -201,7 +172,7 @@ class ImportIn(BaseModel):
 
 
 @router.post("/database/import", response_model=SettingsOut)
-def import_database(payload: ImportIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def import_database(payload: ImportIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     import base64
     url = get_active_db_url()
     if not url.startswith("sqlite://"):
@@ -263,60 +234,24 @@ class PrintResultOut(BaseModel):
 
 
 @router.get("/printer", response_model=PrinterSettingsOut)
-def get_printer_settings(user: UserModel = Depends(require_role("admin"))):
+def get_printer_settings(user: UserModel = Depends(require_permission("settings.view"))):
     cfg = get_printer_config()
     return PrinterSettingsOut(**cfg)
 
 
 @router.put("/printer", response_model=PrinterSettingsOut)
-def update_printer_settings(payload: PrinterSettingsIn, user: UserModel = Depends(require_role("admin"))):
+def update_printer_settings(payload: PrinterSettingsIn, user: UserModel = Depends(require_permission("admin.manage_settings"))):
     patch = {k: v for k, v in payload.model_dump().items() if v is not None}
     cfg = update_printer_config(patch)
     return PrinterSettingsOut(**cfg)
 
 
 @router.post("/printer/test", response_model=PrintResultOut)
-def test_printer(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def test_printer(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     from app.services.tickets import build_test_ticket
     payload = build_test_ticket(db)
     res: PrintResult = print_bytes(payload)
     return PrintResultOut(**res.to_dict())
-
-
-# ── Discount policy ──────────────────────────────────────────────────
-class DiscountPresetIn(BaseModel):
-    label: str = Field(min_length=1, max_length=32)
-    mode: str = Field(default="amount", pattern=r"^(amount|percent)$")
-    value: float = Field(gt=0, le=10000)
-
-    @model_validator(mode="after")
-    def _cap_percent(self):
-        if self.mode == "percent" and self.value > 100:
-            raise ValueError("value must be <= 100 when mode='percent'")
-        return self
-
-
-class DiscountPolicyOut(BaseModel):
-    max_discount_pct: float
-    presets: list[DiscountPresetIn]
-    require_reason: bool
-
-
-class DiscountPolicyIn(BaseModel):
-    max_discount_pct: float | None = Field(default=None, ge=0, le=1)
-    presets: list[DiscountPresetIn] | None = None
-    require_reason: bool | None = None
-
-
-@router.get("/discount", response_model=DiscountPolicyOut)
-def get_discount_settings(user: UserModel = Depends(require_role("admin"))):
-    return DiscountPolicyOut(**get_discount_policy())
-
-
-@router.put("/discount", response_model=DiscountPolicyOut)
-def update_discount_settings(payload: DiscountPolicyIn, user: UserModel = Depends(require_role("admin"))):
-    patch = payload.model_dump(exclude_none=True)
-    return DiscountPolicyOut(**set_discount_policy(patch))
 
 
 # ── Order approval ───────────────────────────────────────────────────
@@ -325,7 +260,7 @@ class OrderApprovalIn(BaseModel):
 
 
 @router.post("/order-approval", response_model=SettingsOut)
-def update_order_approval(payload: OrderApprovalIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_order_approval(payload: OrderApprovalIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_settings"))):
     if payload.order_approval_required is not None:
         set_order_approval_required(payload.order_approval_required)
     return _build_settings_out(db)

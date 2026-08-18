@@ -9,7 +9,7 @@ from app.models import (
     Order, OrderItem, OrderItemModifier, Payment, User,
 )
 from app.schemas import CheckoutIn, CartItemIn, OrderOut, OrderItemOut, OrderItemModOut, PaymentOut
-from app.core.config import get_tax_rate, get_order_approval_required
+from app.core.config import get_order_approval_required
 
 
 # Status transitions allowed by cancel_order — kitchen may reject an order
@@ -213,8 +213,7 @@ def submit_order(db: Session, payload: CheckoutIn, user: User) -> Order:
         subtotal += item_subtotal
         order.items.append(item)
     order.subtotal = round(subtotal, 2)
-    order.tax = round(subtotal * get_tax_rate(), 2)
-    order.total = round(order.subtotal + order.tax, 2)
+    order.total = order.subtotal
 
     db.add(order)
     db.commit()
@@ -255,7 +254,6 @@ def open_bill(db: Session, payload, user: User) -> Order:
         status="open",
         created_by=user.id,
         subtotal=0.0,
-        tax=0.0,
         total=0.0,
     )
     db.add(order)
@@ -287,8 +285,7 @@ def append_items(db: Session, order_id: int, payload) -> Order:
         order.items.append(item)
 
     order.subtotal = round(order.subtotal + extra_subtotal, 2)
-    order.tax = round(order.subtotal * get_tax_rate(), 2)
-    order.total = round(order.subtotal + order.tax, 2)
+    order.total = order.subtotal
     db.commit()
     db.refresh(order)
     return order
@@ -320,18 +317,11 @@ def accept_order(db: Session, order_id: int) -> Order:
 def close_order(
     db: Session, order_id: int,
     payment_method: str, tendered: float,
-    discount: float = 0.0, discount_reason: str = "",
-) -> Order:
+) -> Order | None:
     """Cashier closes an already-accepted bill. accepted -> paid.
 
     Records a Payment row. The order must have been accepted by the
     kitchen first; otherwise the cashier has nothing to bill yet.
-
-    M21 — optionally apply a fixed-amount discount. The discount
-    reduces the taxable base (tax recomputed on discounted subtotal)
-    and the grand total. Permission + max-cap guards are enforced
-    by the route handler before this service is called — see
-    `api.orders.close_endpoint`.
 
     M20-empty — an empty open bill (no items) is DELETED entirely.
     No record, no payment, bill number freed for reuse.
@@ -353,16 +343,7 @@ def close_order(
         db.commit()
         return None
 
-    # Apply discount (negative amounts are silently clamped to 0)
-    applied_discount = max(0.0, float(discount))
-    order.discount = round(applied_discount, 2)
-    order.discount_reason = (discount_reason or "")[:120]
-
-    # Recompute totals: taxable base is subtotal minus discount, tax on
-    # that, grand total = taxable + tax.
-    taxable = max(0.0, order.subtotal - order.discount)
-    order.tax = round(taxable * get_tax_rate(), 2)
-    order.total = round(taxable + order.tax, 2)
+    order.total = order.subtotal
 
     tendered_amount = tendered if tendered > 0 else order.total
     change = round(tendered_amount - order.total, 2)
@@ -406,8 +387,7 @@ def to_order_out(o: Order) -> OrderOut:
     return OrderOut(
         id=o.id, number=o.number, table_id=o.table_id, status=o.status,
         type=o.type, customer_name=o.customer_name, notes=o.notes,
-        subtotal=o.subtotal, discount=o.discount, discount_reason=o.discount_reason,
-        tax=o.tax, total=o.total,
+        subtotal=o.subtotal, total=o.total,
         created_at=o.created_at, updated_at=o.updated_at,
         items=[
             OrderItemOut(
@@ -504,10 +484,7 @@ def void_order(db: Session, order_id: int, reason: str, user: User) -> Order:
     order.status = "void"
     order.notes = (order.notes or "") + f"\n[VOIDED {stamp}: {reason} by {user.name}]"
     order.subtotal = 0.0
-    order.tax = 0.0
     order.total = 0.0
-    order.discount = 0.0
-    order.discount_reason = ""
     db.commit()
     db.refresh(order)
     return order
@@ -567,7 +544,6 @@ def cancel_order(db: Session, order_id: int, reason: str, item_id: int | None = 
     order.notes = (order.notes or "") + f"\n[CANCELLED {stamp}: {reason}]"
     # Zero out totals — a fully cancelled order is not billable.
     order.subtotal = 0.0
-    order.tax = 0.0
     order.total = 0.0
     db.commit()
     db.refresh(order)
@@ -575,7 +551,7 @@ def cancel_order(db: Session, order_id: int, reason: str, item_id: int | None = 
 
 
 def _recompute_totals(db: Session, order: Order) -> None:
-    """Recalculate subtotal/tax/total for `order`, excluding cancelled items."""
+    """Recalculate subtotal/total for `order`, excluding cancelled items."""
     active_subtotal = 0.0
     for item in order.items:
         if item.status == "cancelled":
@@ -583,5 +559,4 @@ def _recompute_totals(db: Session, order: Order) -> None:
         mod_total = sum(m.price_delta for m in item.modifiers)
         active_subtotal += (item.price + mod_total) * item.qty
     order.subtotal = round(active_subtotal, 2)
-    order.tax = round(active_subtotal * get_tax_rate(), 2)
-    order.total = round(order.subtotal + order.tax, 2)
+    order.total = order.subtotal

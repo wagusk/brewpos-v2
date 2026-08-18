@@ -1,387 +1,98 @@
-# Brew-POS v2 — Progress Log
+# Brew-POS v2 — Current Project Status
 
-> Modular, extensible Point-of-Sale for restaurants & cafes.
-> FastAPI + SQLite + Vite/React + MUI. Module registry architecture.
-> Light theme UI.
+Last reviewed: 2026-08-18
 
-Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocker
+Brew-POS v2 is an actively developed restaurant and café POS. The current
+working tree contains a consolidated React workspace backed by a modular
+FastAPI API. The application is functional for local development, but should
+still be treated as pre-production until the full API workflow and deployment
+configuration are verified in a clean environment.
 
-## Stack
-- **Backend:** FastAPI · SQLAlchemy 2.0 · SQLite · JWT (python-jose) · bcrypt · WebSocket
-- **Frontend:** Vite 5 · React 18 · TypeScript · MUI v6 · Redux Toolkit · React Router 6
-- **Sync:** FastAPI WebSocket hub → all terminals (Table View, Order, Kitchen, Bar, Cashier)
-- **Roles:** `admin` · `master` · `cashier` · `waiter` · `kitchen` · `bar`
-- **UI Theme:** Light theme (MUI light palette, no dark mode)
-- **Run:** `./run.sh` — auto-creates venv, installs deps, builds frontend, seeds DB, starts backend serving static UI
+## Status summary
 
-## Architecture: Modular Registry
+| Area | Status | Current state |
+|---|---|---|
+| Backend API | Complete for current scope | FastAPI app, SQLAlchemy models, JWT/PIN auth, permissions, WebSocket hub, and registered feature routers are present. |
+| Frontend workspace | Complete for current scope | React/Vite/TypeScript workspace provides POS, kitchen, bar, cashier, admin, settings, and inventory screens. |
+| Data-driven configuration | Implemented | Menu, tables, orders, roles, permissions, tax, discount, inventory, vouchers, printer, and application settings use API/database data. |
+| Payments and order flow | Implemented | Checkout, open bills, item append, acceptance, close/cancel/void, payment processing, and order statistics are wired. |
+| Reporting and administration | Implemented | User, role, category, product, table, settings, inventory, and sales/bill-history API workflows are present. |
+| Production readiness | Not complete | Default credentials/secrets remain development-oriented; clean-environment API verification and deployment hardening remain. |
 
-**Frontend:** `frontend/src/app/moduleRegistry.ts` — central manifest of all modules
-**Backend:** `backend/app/main.py` — MODULE_REGISTRY dict + ENABLED_MODULES flags
+## Current stack
 
-Each feature is a self-contained folder. Adding a feature = create folder + register in manifest.
+- Backend: Python 3, FastAPI, Uvicorn, SQLAlchemy 2, Pydantic 2
+- Persistence: SQLite by default; PostgreSQL via `psycopg`
+- Security: JWT bearer tokens, PIN login, role and permission checks
+- Realtime: FastAPI WebSocket hub at `/ws`
+- Frontend: React 18, Vite 6, TypeScript, Lucide icons, CSS custom properties
+- Tests: pytest and FastAPI `TestClient` tests in `backend/tests/`
 
-## File Overview
+## Implemented backend modules
 
-```
-Brew-POS-V2/
-├── run.sh                     # ONE command — auto-install, build, seed, serve
-├── requirements.txt           # Python: fastapi, uvicorn, sqlalchemy, jose, passlib
-├── README.md                  # User guide
-├── AI-REFERENCE.md            # Condensed reference for AI
-├── PROGRESS.md                # This file
-├── opencode.json              # OpenCode AI provider config
-├── backend/
-│   ├── app/
-│   │   ├── main.py            # FastAPI entry; dynamic module loading
-│   │   ├── core/{config,security,permissions}.py
-│   │   ├── db/{session,seed}.py
-│   │   ├── models/__init__.py
-│   │   ├── schemas/__init__.py
-│   │   ├── services/{__init__,crud,printer,escpos,tickets}.py
-│   │   ├── modules/           # Self-contained routers
-│   │   │   ├── auth/router.py
-│   │   │   ├── menu/router.py
-│   │   │   ├── orders/router.py
-│   │   │   ├── admin/router.py
-│   │   │   ├── settings/router.py
-│   │   │   ├── printer/router.py
-│   │   │   ├── payment/router.py
-│   │   │   └── i18n/router.py
-│   │   └── ws/{__init__,hub}.py
-│   └── brewpos.db             # SQLite (auto-created)
-├── frontend/
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── tsconfig.{json,app,node}.json
-│   └── src/
-│       ├── main.tsx
-│       ├── app/
-│       │   ├── App.tsx        # Module-driven router
-│       │   └── moduleRegistry.ts
-│       ├── core/
-│       │   ├── api.ts          # API client (Bearer auth)
-│       │   ├── permissions.ts  # usePermissions hook
-│       │   ├── store/index.ts
-│       │   ├── ws.ts           # WebSocket client
-│       │   └── theme/monoTheme.tsx  # Light theme tokens (useTheme)
-│       ├── components/         # POSCard, POSButton, POSTextField, POSChip, POSIcon, Shell
-│       ├── shared/             # Shared UI patterns (dialog, header, keypad, etc.)
-│       └── modules/
-│           ├── auth/          # LoginPage (PIN pad, role-based redirect)
-│           ├── tables/        # TableViewPage (visual table grid, first operational screen)
-│           ├── order/         # OrderPage (menu, cart, send to kitchen)
-│           ├── cashier/       # CashierPage (legacy floor-plan variant)
-│           ├── payment/       # Payment dialog (close-bill flow)
-│           ├── kitchen/       # KitchenPage (order display, item status progression)
-│           ├── bar/           # BarPage (filtered order display)
-│           ├── admin/         # AdminPage (CRUD for categories, products, users, tables, roles)
-│           ├── settings/      # SettingsPage + UISettingsPage (tax, printer, discount, database, UI tokens)
-│           ├── discount/      # DiscountPage (bill history)
-│           ├── void/          # VoidPage (void bills with reason)
-│           └── multilingual/  # i18n (en.ts, id.ts)
-└── docs/
-    ├── UI-DESIGN-RULE.md      # UI design specification (v1.0, ACTIVE)
-    ├── UI-DESIGN-RULES.md     # Summary pointer deferring to UI-DESIGN-RULE.md
-    └── UI-DESIGN-AUDIT-REPORT.md  # Historical tracking doc for migration compliance
+The enabled router registry is defined in `backend/app/main.py` and currently
+contains 12 modules:
+
+- auth
+- menu
+- orders
+- admin
+- settings
+- printer
+- i18n
+- payment
+- tax
+- discount
+- inventory
+- vouchers
+
+Users, roles, tables, orders, payments, inventory, vouchers, and menu entities
+also have dedicated model/service files where needed. The module status is
+available from `GET /api/modules`.
+
+## Implemented frontend screens
+
+The current frontend is intentionally consolidated in `frontend/src/App.tsx`
+with shared API, type, theme, component, and stylesheet files:
+
+- PIN login and session recovery
+- POS menu, modifiers, cart, table selection, checkout, and open bills
+- Kitchen and bar station workflows
+- Cashier order and payment workflows
+- Admin CRUD and reporting views
+- Settings for database, printer, tax, discount, order approval, and UI
+- Inventory workspace and voucher API support
+- Permission-aware navigation and responsive touch-oriented styling
+
+The older frontend `app/`, `core/`, `modules/`, and `shared/` tree is no
+longer the active implementation.
+
+## Verification
+
+Verified on 2026-08-18:
+
+```text
+cd frontend && npm run build
+✓ vite production build passed
+✓ 1,579 modules transformed
+✓ output written to frontend/dist
 ```
 
----
+Backend tests are present but were not runnable in the current shell because
+the `pytest` executable is not installed. Run them after installing the
+project dependencies:
 
-## Milestones
-
-### M1 — v2 Scaffold & Module Registry
-- [x] Repo layout (backend/ + frontend/ + docs/)
-- [x] `run.sh` builds frontend + boots backend serving static UI
-- [x] PROGRESS.md + README skeleton + AI-REFERENCE.md
-- [x] Modular architecture design
-- [x] Module registry system (frontend + backend)
-- [x] i18n module structure (`multilingual/i18n/en.ts`, `id.ts`, `index.ts`)
-
-### M2 — Module Registry & Dynamic Loading
-- [x] Frontend: `moduleRegistry.ts` with 10+ modules registered
-- [x] Frontend: `App.tsx` with module-driven routing
-- [x] Backend: `main.py` with MODULE_REGISTRY + ENABLED_MODULES
-- [x] Backend: Dynamic module loading via `__import__`
-- [x] Backend: `/api/modules` endpoint for module status
-
-### M3 — Core Infrastructure
-- [x] Frontend: Redux store (`core/store/index.ts`)
-- [x] Frontend: Shell component with module navigation (`components/Shell.tsx`)
-- [x] Backend: Config module (`core/config.py`) — multi-tax, discount policy, persistence
-- [x] Backend: Security module (`core/security.py`) — JWT, PIN hashing, require_role, require_permission
-- [x] Backend: Permissions module (`core/permissions.py`) — permission catalog, role defaults
-- [x] Backend: Database session + seed (`db/session.py`, `db/seed.py`)
-
-### M4 — Backend Module Structure (All Complete)
-- [x] Auth module router (`modules/auth/router.py`) — login, me
-- [x] Menu module router (`modules/menu/router.py`) — menu, tables, table-sections
-- [x] Orders module router (`modules/orders/router.py`) — checkout, open-bill, close, accept, cancel, void, append, print, stats
-- [x] Admin module router (`modules/admin/router.py`) — CRUD for categories, products, tables, users, roles + reports
-- [x] Settings module router (`modules/settings/router.py`) — tax, text-size, database, printer, discount, order-approval
-- [x] Printer module router (`modules/printer/router.py`) — status, config, test
-- [x] Payment module router (`modules/payment/router.py`) — initiate, confirm, retry, cancel, get, list-by-order
-- [x] i18n module router (`modules/i18n/router.py`) — locales, translations
-
-### M5 — Frontend Module Structure (All Complete)
-- [x] Auth module (`modules/auth/LoginPage.tsx`) — PIN pad with role-based redirect
-- [x] Tables module (`modules/tables/TableViewPage.tsx`) — visual table overview, default landing
-- [x] Order module (`modules/order/OrderPage.tsx`) — menu, cart, checkout
-- [x] Cashier module (`modules/cashier/CashierPage.tsx`) — legacy floor-plan variant
-- [x] Payment module (`modules/payment/PaymentDialog.tsx`) — close-bill flow
-- [x] Kitchen module (`modules/kitchen/KitchenPage.tsx`) — order display, item status progression
-- [x] Bar module (`modules/bar/BarPage.tsx`) — filtered order display (bar + both stations)
-- [x] Admin module (`modules/admin/AdminPage.tsx`) — full CRUD for all resources + reports
-- [x] Settings module (`modules/settings/SettingsPage.tsx` + `UISettingsPage.tsx`) — tax, printer, discount, database, UI tokens
-- [x] Discount module (`modules/discount/DiscountPage.tsx`) — bill history viewer
-- [x] Void module (`modules/void/VoidPage.tsx`) — void bills with required reason
-- [x] Multilingual module (`modules/multilingual/`) — i18n with en.ts + id.ts
-
-### M6 — Verification & Build
-- [x] Frontend build passes (`npm run build` → `✓ built in 6.89s`)
-- [x] Backend imports clean (all 20 modules import OK)
-- [x] Backend health check passes (`/health` → 200)
-- [x] Backend 68+ routes registered
-- [x] Backend running on port 8000
-- [x] Frontend served as static files by backend at `/`
-
-### M7 — v1 Migration: Backend Core (Complete)
-- [x] Migrated models (`backend/app/models/__init__.py`)
-- [x] Migrated schemas (`backend/app/schemas/__init__.py`)
-- [x] Migrated services (`backend/app/services/__init__.py`, `crud.py`, `printer.py`, `escpos.py`, `tickets.py`)
-- [x] Migrated config (`backend/app/core/config.py`)
-- [x] Migrated security (`backend/app/core/security.py`)
-- [x] Migrated permissions (`backend/app/core/permissions.py`)
-- [x] Migrated database session + seed (`backend/app/db/`)
-- [x] Migrated all API routes (`backend/app/modules/`)
-- [x] Migrated WebSocket hub (`backend/app/ws/`)
-- [x] Backend venv created + deps installed
-- [x] Backend running on port 8000 serving frontend
-
-### M8 — v1 Migration: Frontend Core (Complete)
-- [x] Created API client (`core/api.ts`) — all endpoints wired
-- [x] Created i18n module (`modules/multilingual/i18n/`)
-- [x] Created Shell with role-based navigation
-- [x] Created light theme module (modules/theme/monoTheme.tsx) — MUI light palette, no dark mode
-- [x] App.tsx wired with all module routes
-- [x] All pages fetch real backend data
-- [x] Frontend build passes
-
-### M9 — Full POS Workflow (Complete)
-- [x] Cashier: menu → cart → send to kitchen → view orders → close bills
-- [x] Waiter: menu → cart → open empty bill → send to kitchen
-- [x] Kitchen: view station-filtered orders → accept → progress items → serve
-- [x] Bar: view bar-filtered orders → accept → progress items → serve
-- [x] Admin: CRUD for categories, products, users, tables, roles + reports
-- [x] Settings: tax config, printer config, discount policy, database management
-- [x] Void: void paid bills with required reason
-- [x] Login: PIN-based auth with role-based redirect
-
-### M10 — Light Theme (Complete)
-- [x] Light theme (MUI light palette, no dark mode)
-- [x] Removed dark theme entirely
-
-### M11 — Bug Fixes & Alignment (Complete)
-- [x] Fixed `update_order_status` router call — added missing `payload.status` arg
-- [x] Fixed LoginPage — redirects based on user role (admin→/admin, cashier→/cashier, etc.)
-- [x] Fixed Shell — filters nav items by user permissions
-- [x] Fixed CashierPage — shows real backend orders, supports close bill flow
-- [x] Fixed KitchenPage/BarPage — fetches real orders, filters by station
-- [x] Fixed SettingsPage — added missing Divider import
-- [x] Fixed AdminPage — form payloads match backend schemas
-- [x] Fixed BarPage — corrected @mui/material import path
-
-### M12 — Table View (First Operational Screen) (Complete)
-- [x] New module `modules/tables/TableViewPage.tsx` — visual table overview screen at `/tables`
-- [x] Data-driven tile layout — name, seats, status, order #, items, total, server, occupancy, payment status, paid/outstanding (every field toggleable)
-- [x] Sections grouped by `tables.section`, configured via `get_table_sections()` (Main Hall, Patio, Bar, Private — all data-driven)
-- [x] Section filter chips + collapsible section groups (configurable)
-- [x] Status counters (Free / Occupied / Partial / Total / Inactive) in header
-- [x] Auto-refresh every 5 s + on focus/visibility
-- [x] Tap free table → confirmation dialog → `/order?table_id=N` (start new bill)
-- [x] Tap occupied table → straight to `/order?order_id=N&table_id=N` (resume bill)
-- [x] Inactive table tap → "Yes" button disabled in confirm dialog
-- [x] `modules/tables/TableTile.tsx` — single tile, every field gated by `useTableViewConfig`
-- [x] `modules/tables/tableviewConfig.ts` — data-driven field config persisted to localStorage
-- [x] Customize menu — toggle per-field visibility, switch sections/collapsible/counters/filter, reset to defaults, status+payment legends
-- [x] Module registered in `moduleRegistry.ts`, route in `App.tsx`, default landing is `/tables`
-- [x] Shell nav entry "Table View" with `TableRestaurant` icon
-- [x] Login redirect → `/tables`
-- [x] i18n keys: 36 new entries in `en.ts` + `id.ts` under `tablesview.*` namespace
-- [x] API client: `api.getTableSections()` added
-- [x] Build passes (`✓ built in 7.11s`)
-- [x] Live verified: counters update, section filter works, tile tap navigates, customize menu shows all toggles + legends
-
----
-
-## Verification Log
-
-```
-$ cd frontend && npm run build
-> vite build
-✓ 11604 modules transformed.
-✓ built in 7.55s.  Asset hash: index-BRL9Kqzl.js  ✓
-
-$ /home/lenovo/Hermes-Project/Brew-POS-V2/.venv/bin/python3 -c "
-import sys; sys.path.insert(0, '.')
-from app.main import app
-print(f'{len(app.routes)} routes registered')
-"
-68 routes  ✓
-
-$ curl http://localhost:8000/health
-{"ok":true,"app":"Brew-POS","version":"2.0.0"}  ✓
-
-$ curl -s -X POST http://localhost:8000/api/auth/login -H "Content-Type: application/json" -d '{"pin":"9999"}'
-{"access_token":"eyJ...","token_type":"bearer","user":{"id":1,"name":"Admin","role":"admin","permissions":[],"active":true}}  ✓
-
-$ curl http://localhost:8000/ | head -5
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  ✓
-
-$ curl -s http://localhost:8000/api/menu -H "Authorization: Bearer $TOKEN"
-{"categories":[{"id":1,"name":"Coffee",...}],"products":[{"id":1,"name":"Espresso","price":2.5,...}]}  ✓
-
-$ curl -s http://localhost:8000/api/orders -H "Authorization: Bearer $TOKEN"
-[{"id":1,"number":1,"status":"open","items":[...]}]  ✓
-
-$ curl -s -X POST http://localhost:8000/api/orders/checkout -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"type":"takeaway","items":[{"product_id":1,"qty":2,"modifiers":[]}]}'
-{"id":2,"number":2,"status":"open","total":5.75,...}  ✓
+```bash
+PYTHONPATH=backend pytest -q
 ```
 
-### M13 — Real-Time WebSocket Sync (Complete)
-- [x] Frontend WebSocket client (`core/ws.ts`) with auto-reconnect, heartbeat, exponential backoff
-- [x] Redux orders slice (`core/store/ordersSlice.ts`) for state management
-- [x] App.tsx WebSocket initialization on mount
-- [x] Kitchen page: WebSocket events + fallback polling + connection status indicator
-- [x] Bar page: WebSocket events + fallback polling + connection status indicator
-- [x] Message handler: `order_created`, `order_updated`, `order_accepted`, `order_item_updated`, `order_served`, `order_closed`, `order_cancelled`
-- [x] Backend broadcasts on all order mutations (checkout, open-bill, accept, close, cancel, void, append)
-- [x] WebSocket connection status UI (Chip with Wifi/WifiOff icons)
-- [x] Automatic reconnection (1s → 30s exponential backoff, max 10 attempts)
-- [x] Heartbeat every 30s to detect dead connections
-- [x] Frontend build passes (`✓ built in 7.55s`)
-- [x] Kitchen/Bar latency: 5000ms (polling) → <50ms (WebSocket) — **100x faster**
-- [x] Network traffic: 12 reqs/min × 2 terminals → ~2 msgs/min — **6x less**
+## Next work
 
-### M14 — UI Design System (Complete)
-- [x] Created `docs/UI-DESIGN-RULE.md` — comprehensive design specification
-- [x] Documented unified visual language: card-based, touch-first, minimal text
-- [x] Documented all POS components: POSCard, POSButton, POSTextField, POSChip, POSIcon
-- [x] Documented color system (core, semantic, domain, status, payment)
-- [x] Documented spacing & sizing system (typography scale, component sizing, layout tokens)
-- [x] Documented interaction patterns (button, card, input, chip states)
-- [x] Documented layout rules (TopBar, three-column POS, grid spacing, content hierarchy)
-- [x] Documented anti-patterns (raw HTML, hardcoded colors/dimensions, uncontained text)
-- [x] Documented accessibility requirements (contrast, touch targets, keyboard, screen readers)
-- [x] Documented theme customization (runtime settings, persistence, reset)
-- [x] Documented implementation checklist for page development
-
-### M15 — WebSocket Extended to All Pages (Complete)
-- [x] Table View: added `wsConnected` state + connection status indicator (Wifi/WifiOff chip)
-- [x] Table View: WS events (`table_*`, `order_*`) trigger data refresh with proper `ws_connected`/`ws_disconnected` handling
-- [x] Order Page: added `wsConnected` state + floating connection status indicator
-- [x] Order Page: added 10s fallback polling when WS disconnected and bill is loaded
-- [x] Order Page: WS listener now handles `ws_connected`/`ws_disconnected` events
-- [x] Cashier Page: added full WebSocket support (was polling-only before)
-- [x] Cashier Page: added `wsConnected` state + connection status indicator
-- [x] Cashier Page: subscribes to `table_*` and `order_*` events
-- [x] Cashier Page: replaced blind 10s polling with event-driven WS + fallback
-- [x] All 5 operational pages now have real-time sync + connection status indicator
-- [x] Frontend build passes (`✓ built in 7.55s`)
-- [x] TypeScript check clean (`npx tsc --noEmit` — 0 errors)
-
----
-
-## What's Done
-
-- Modular registry architecture (frontend + backend)
-- Module-driven routing with 11 feature modules
-- i18n module with en.ts/id.ts translations
-- Feature flags (ENABLED_MODULES)
-- v1 backend fully migrated (models, schemas, services, all API routes, WS)
-- v1 frontend structure migrated (Shell, App, all module placeholders)
-- All POS workflows: table view, order, kitchen, bar, admin, settings, void
-- Full CRUD for categories, products, users, tables, roles
-- Reports: sales summary, sales by category, item sales, payment methods, bill history
-- Light theme UI (no dark mode)
-- Role-based navigation and permission filtering
-- Login with PIN-based auth and role-based redirect
-- Build passes, all modules import clean
-- Backend running on :8000 serving frontend as static files
-- Table view as default landing screen with section grouping
-- Payment processing state machine (M35): duplicate prevention, retry, provider tracking
-- COGS tracking (M27): per-product cost for profit calculation
-- Order approval toggle: admin can require kitchen acceptance before billing
-- Database portability: URL editor, reload, reset, export/import
-- **WebSocket real-time sync** — All 5 operational pages (Table View, Order, Kitchen, Bar, Cashier) receive real-time updates
-  - Auto-reconnect with exponential backoff
-  - Fallback polling on disconnect
-  - Connection status indicator on every page
-  - Redux-driven state for consistency
-
-## What's Next
-- [ ] Optimize: dispatch Redux directly instead of fallback API calls (50% fewer requests)
-- [ ] Printer integration (thermal receipt printing via ESC/POS) — infrastructure exists, needs physical printer testing
-- [ ] Reports dashboard with charts (recharts integration)
-- [ ] Dashboard page with stats overview
-- [ ] Permission system UI for custom user permissions
-- [ ] Bill history with filters (date range, status, station)
-- [ ] Offline queue: IndexedDB + sync on reconnect
-- [ ] UI Design Rule compliance migration (incremental, file by file)
-
----
-
-## Design Principles
-
-1. **Every feature is a module** — self-contained, pluggable
-2. **Module registry is the source of truth** — single manifest
-3. **Feature flags enable/disable** — no code deletion needed
-4. **i18n-first** — no hardcoded strings in components
-5. **Core is thin** — infrastructure only, no business logic
-6. **Contracts are explicit** — Module interface, router interface
-7. **Build always works** — incremental development, never broken
-8. **Light theme** — MUI light palette, no dark mode
-
----
-
-## Comparison with v1
-
-| Aspect | v1 | v2 |
-|--------|----|----|
-| Architecture | Monolithic pages | Modular registry |
-| Adding feature | Edit 4-5 files | Create folder + register |
-| i18n | Partial (Shell only) | Full (every module) |
-| Permissions | Static dict | Dynamic per-module |
-| Routes | Hardcoded in App.tsx | Generated from registry |
-| Config | Hardcoded | Environment + settings file |
-| Scalability | Limited | Unlimited modules |
-| UI Theme | Default MUI | Light theme (no dark mode) |
-
----
-
-## License
-
-Business Source License 1.1 — see [LICENSE](LICENSE).
-
-On **2036-07-31** (the Change Date), each release converts to the **Apache License 2.0**.
-
----
-
-## UI Design Rule — Consolidation Milestone (2026-08-12)
-
-Single source of truth for UI conventions: [`docs/UI-DESIGN-RULE.md`](./docs/UI-DESIGN-RULE.md) (v1.0, ACTIVE).
-
-Actions taken:
-
-- [x] `docs/UI-DESIGN-RULES.md` (8-line stub) rewritten as a summary pointer that defers to `UI-DESIGN-RULE.md` for every authoritative tenet. If they ever disagree, the canonical file wins.
-- [x] `docs/UI-DESIGN-AUDIT-REPORT.md` stamped as a historical tracking doc with a Milestone Status table appended. Future migrations append a row; the v1.0 violation snapshot stays frozen.
-- [x] Removed `frontend/src/modules/glassmorphism/` — dead folder, zero imports anywhere in `frontend/src/`, not in `moduleRegistry.ts`, violates the "no glassmorphism" rule.
-- [x] No code migration in this milestone — the rule itself was already complete; this milestone is doc hygiene + dead-code removal. File-level migration is tracked in the audit report's Milestone Status table.
-- [x] **M2 — Tables module migrated to UI Design Rule** (2026-08-12). `modules/tables/TableViewPage.tsx`, `modules/tables/TableTile.tsx`, `modules/tables/tableviewConfig.ts`. `STATUS_MAP` + `PAYMENT_STATUS_MAP` switched from hardcoded hex to `colorToken` references resolved at render time. Section header loose stripe → contained `POSChip`. Error banner `⚠` glyph → `ErrorOutlineIcon` in `POSIcon`. Backdrop `rgba(0,0,0,0.2)` → new theme token `c.overlay`. Tile magic `12*fontScale` padding → `c.ui.cardPadding`. Unused `settingsBtnRef` removed. 18 new i18n keys added (`tablesview.status.*`, `tablesview.payment.*`, `tablesview.billLabel`) in `en.ts` + `id.ts`. `npx tsc --noEmit` clean, `npm run build` clean, `check-ui-conventions.sh frontend/src/modules/tables` — 0 violations.
-- [ ] Next: pick files from the audit's Critical / High list and migrate one module at a time (per project convention — incremental, not batch).
+- Install backend dependencies and run the complete API test suite.
+- Exercise the main POS, station, payment, admin, and settings flows against a
+  freshly seeded database.
+- Replace development JWT secrets and default PINs before deployment.
+- Add or confirm migration coverage for schema changes beyond the current
+  additive startup migrations.
+- Add frontend interaction tests and deployment documentation as the product
+  moves toward production use.

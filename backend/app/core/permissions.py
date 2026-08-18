@@ -17,7 +17,6 @@ PERMISSIONS = (
     "order.open",        # Create new order / open bill
     "order.close",       # Close bill / process payment
     "order.cancel",      # Cancel order or item
-    "order.discount",    # Apply discount at checkout
     "order.append",      # Add items to existing bill
     "order.void",        # Void an order (admin only)
     "kitchen.serve",     # Mark kitchen items as served
@@ -33,10 +32,10 @@ PERMISSIONS = (
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "admin": set(PERMISSIONS),
     "master": set(PERMISSIONS),
-    # Cashier: can open orders, close bills, apply discounts
+    # Cashier: can open orders, close bills
     "cashier": {
         "dashboard.view", "pos.view", "menu.view",
-        "order.open", "order.close", "order.cancel", "order.discount", "order.append",
+        "order.open", "order.close", "order.cancel", "order.append",
     },
     # Waiter: can open orders, add items, but not close bills
     "waiter": {
@@ -70,5 +69,11 @@ def normalise_permissions(role: str, permissions: Iterable[str] | None) -> list[
 
 
 def can(user, permission: str) -> bool:
-    """Admin and Master have emergency full-access role; others use persisted grants."""
-    return user.role in ("admin", "master") or permission in (user.permissions or [])
+    """Admin and Master have emergency full-access role; others use persisted grants or role defaults."""
+    if not user:
+        return False
+    if user.role in ("admin", "master"):
+        return True
+    user_perms = set(user.permissions or [])
+    role_perms = set(default_permissions(user.role))
+    return permission in user_perms or permission in role_perms

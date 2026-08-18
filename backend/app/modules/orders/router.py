@@ -147,8 +147,8 @@ async def close_endpoint(order_id: int, payload: CloseOrderIn, db: Session = Dep
         applied_reason = applied_reason or str(match.get("label") or "")
         preset_applied = True
 
-    if resolved_discount > 0 and not preset_applied:
-        if "order.discount" not in (user.permissions or []):
+    if resolved_discount > 0:
+        if not can(user, "order.discount"):
             raise HTTPException(403, "You don't have permission to apply a discount.")
 
     if resolved_discount > 0:
