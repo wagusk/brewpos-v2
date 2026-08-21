@@ -142,6 +142,46 @@ export default function POS({
       setBusy(false);
     }
   };
+  // Print ticket (kitchen/bar) or receipt (paid orders)
+  const printBill = async () => {
+    if (!orderId || busy) return;
+    setBusy(true);
+    try {
+      const result =
+        bill?.status === "paid"
+          ? await api.printReceipt(orderId)
+          : await api.printTicket(orderId);
+      notify(
+        bill?.status === "paid"
+          ? "Customer receipt sent to printer"
+          : `Ticket sent to printer (${result.ok ? "ok" : result.error ?? "no printer"})`,
+      );
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Print failed", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Cancel an open bill (only possible before kitchen acceptance)
+  const cancelBill = async () => {
+    if (!orderId || busy) return;
+    const reason =
+      window.prompt("Reason for cancellation (required)") ?? "";
+    if (!reason.trim()) return;
+    setBusy(true);
+    try {
+      const order = await api.cancelOrder(orderId, { reason });
+      setBill(order);
+      setOrderId(null);
+      setTableId("");
+      notify(`Bill #${order.number} cancelled`);
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Cancel failed", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   const selectTable = (table: Table) => {
     setTableId(table.id);
     if (table.order_id) {
@@ -306,9 +346,20 @@ export default function POS({
           >
             {busy ? "Saving…" : "Save"}
           </button>
-          <button className="secondary" disabled>Discount</button>
-          <button className="secondary" disabled>Print</button>
-          <button className="secondary" disabled>More</button>
+          <button
+            className="secondary"
+            disabled={!orderId || busy}
+            onClick={printBill}
+          >
+            {bill?.status === "paid" ? "Receipt" : "Print"}
+          </button>
+          <button
+            className="secondary"
+            disabled={!orderId || busy || bill?.status === "paid"}
+            onClick={cancelBill}
+          >
+            Cancel
+          </button>
         </div>
       </aside>
       <section className="pos-menu">
