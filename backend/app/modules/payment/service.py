@@ -92,18 +92,30 @@ def initiate_payment(db: Session, payload: InitiatePaymentIn) -> Payment:
                      payload.order_id, existing.id)
             return existing
 
-    # Block if a payment is already processing or completed for this order
+    # Block only while another payment is processing. Completed partial
+    # payments are valid and the cashier may continue paying the same bill.
     active = _find_active_payment(db, payload.order_id)
-    if active and active.status in ("processing", "completed"):
+    if active and active.status == "processing":
         raise PaymentError(
-            f"Payment already in progress (payment #{active.id}, status: {active.status}). "
+            f"Payment already in progress (payment #{active.id}). "
             "Cancel it before starting a new one."
         )
 
-    # Determine amount
-    amount = float(order.total)
+    paid_total = sum(
+        float(p.amount) for p in order.payments if p.status == "completed"
+    )
+    outstanding = round(max(0.0, float(order.total) - paid_total), 2)
+    if outstanding <= 0:
+        raise PaymentError("Bill is already fully paid")
+    amount = outstanding if payload.amount is None else round(float(payload.amount), 2)
+    if amount <= 0 or amount > outstanding + 0.005:
+        raise PaymentError(
+            f"Payment amount must be between 0 and the outstanding balance of {outstanding:.2f}"
+        )
     tendered = payload.tendered if payload.tendered > 0 else amount
-    change = round(tendered - amount, 2)
+    if payload.method == "cash" and tendered + 0.005 < amount:
+        raise PaymentError(f"Cash received is less than the payment amount of {amount:.2f}")
+    change = round(max(0.0, tendered - amount), 2)
 
     # Create payment record
     payment = Payment(

@@ -72,6 +72,7 @@ The seed creates these users and roles:
 
 | User | PIN | Role |
 |---|---:|---|
+| Superuser | `8888` | `superuser` |
 | Admin | `9999` | `admin` |
 | Cashier | `1111` | `cashier` |
 | Waiter | `2222` | `waiter` |
@@ -79,6 +80,10 @@ The seed creates these users and roles:
 
 The `bar` role is also seeded as a role. PINs are for local development only;
 change them and the JWT secret before using the service in production.
+
+Roles and users support granular permission toggles, including page access,
+menu/table/user/settings management, order actions, and history/report access.
+The `superuser` role always has every permission enabled.
 
 ## Current frontend workspaces
 

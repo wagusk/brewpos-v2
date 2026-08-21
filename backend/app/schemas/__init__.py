@@ -176,6 +176,10 @@ class OrderStatusIn(BaseModel):
 class CloseOrderIn(BaseModel):
     payment_method: str = "cash"  # cash | card | mobile
     tendered: float = 0.0
+    amount: float | None = Field(default=None, gt=0)
+    discount: float = Field(default=0.0, ge=0)
+    discount_reason: str = ""
+    preset_label: str | None = None
 
 
 class CancelOrderIn(BaseModel):
@@ -232,6 +236,7 @@ class InitiatePaymentIn(BaseModel):
     order_id: int
     method: str = "cash"         # cash | card | mobile
     tendered: float = 0.0
+    amount: float | None = Field(default=None, gt=0)
     provider: str = "mock"       # backend may override via config
     idempotency_key: str = ""    # client-generated key for duplicate prevention
 

@@ -12,15 +12,17 @@ from sqlalchemy import text
 
 SEED_ROLES = [
     # name, label, color, sort
-    ("admin", "Admin", "#6b46d3", 0),
-    ("master", "Master", "#d63031", 1),
-    ("cashier", "Cashier", "#2b6cff", 2),
-    ("waiter", "Waiter", "#0c8a7a", 3),
-    ("kitchen", "Kitchen", "#e07b1a", 4),
-    ("bar", "Bar", "#0e9ec7", 5),
+    ("superuser", "Superuser", "#111827", 0),
+    ("admin", "Admin", "#6b46d3", 1),
+    ("master", "Master", "#d63031", 2),
+    ("cashier", "Cashier", "#2b6cff", 3),
+    ("waiter", "Waiter", "#0c8a7a", 4),
+    ("kitchen", "Kitchen", "#e07b1a", 5),
+    ("bar", "Bar", "#0e9ec7", 6),
 ]
 
 SEED_USERS = [
+    ("Superuser", "8888", "superuser"),
     ("Admin", "9999", "admin"),
     ("Cashier", "1111", "cashier"),
     ("Waiter", "2222", "waiter"),
@@ -126,8 +128,16 @@ def run():
                 existing.pin = hash_pin(pin)
                 existing.role = role
                 existing.active = True
+                if role == "superuser":
+                    existing.permissions = default_permissions(role)
             else:
-                db.add(User(name=name, pin=hash_pin(pin), role=role, active=True))
+                db.add(User(
+                    name=name,
+                    pin=hash_pin(pin),
+                    role=role,
+                    permissions=default_permissions(role),
+                    active=True,
+                ))
 
         # Categories
         cat_index: dict[str, Category] = {}
@@ -186,7 +196,7 @@ def run():
         db.commit()
         print(f"Seeded: {len(SEED_USERS)} users, {len(SEED_CATEGORIES)} categories, "
               f"{len(SEED_PRODUCTS)} products, {len(SEED_TABLES)} tables.")
-        print("Login PINs: admin=9999, cashier=1111, waiter=2222, kitchen=3333")
+        print("Login PINs: superuser=8888, admin=9999, cashier=1111, waiter=2222, kitchen=3333")
     finally:
         db.close()
 

@@ -178,12 +178,11 @@ def submit_order(db: Session, payload: CheckoutIn, user: User) -> Order:
     The order is created in 'open' status. No payment is recorded — the
     cashier will close the bill once the kitchen has accepted the order.
 
-    Single-bill-per-table rule: a table that already has an open or
-    accepted bill cannot receive a new one. The waiter must add items
-    to the existing bill instead. `dine_in` orders without `table_id`
-    are not affected.
+    Single-bill-per-table rule: a table that already has an active bill
+    cannot receive a new one. The waiter must add items to the existing
+    bill instead. Takeaway orders without `table_id` are not affected.
     """
-    if payload.table_id is not None and payload.type == "dine_in":
+    if payload.table_id is not None:
         conflict = (
             db.query(Order)
             .filter(
@@ -228,10 +227,10 @@ def open_bill(db: Session, payload, user: User) -> Order:
     The table now shows as "open" (blue tile) even before any kitchen
     items exist. The waiter can later append items to this bill.
 
-    Single-bill-per-table rule: a table that already has an open or
-    accepted bill cannot receive a new one.
+    Single-bill-per-table rule: a table that already has an active bill
+    cannot receive a new one.
     """
-    if payload.table_id is not None and payload.type == "dine_in":
+    if payload.table_id is not None:
         conflict = (
             db.query(Order)
             .filter(
@@ -262,11 +261,13 @@ def open_bill(db: Session, payload, user: User) -> Order:
     return order
 
 
-def append_items(db: Session, order_id: int, payload) -> Order:
+def append_items(db: Session, order_id: int, payload, user=None) -> Order:
     """Append more items to an existing bill (single-bill-per-table UX).
 
     Allowed as long as the bill hasn't been paid or cancelled. Recomputes
-    subtotal/tax/total so the cashier's view stays accurate.
+    subtotal/tax/total so the cashier's view stays accurate. ``user`` is
+    retained as an optional compatibility argument for older routers; item
+    authorization is handled at the API endpoint.
     """
     from app.schemas import AppendItemsIn
     if isinstance(payload, AppendItemsIn) is False and not hasattr(payload, 'items'):
@@ -301,7 +302,7 @@ def accept_order(db: Session, order_id: int) -> Order:
     order = db.get(Order, order_id)
     if not order:
         raise ValueError("Order not found")
-    if order.status != "open":
+    if order.status not in ("open", "accepted"):
         raise ValueError(f"Cannot accept order in status '{order.status}'")
     order.status = "accepted"
     for item in order.items:
@@ -316,12 +317,14 @@ def accept_order(db: Session, order_id: int) -> Order:
 
 def close_order(
     db: Session, order_id: int,
-    payment_method: str, tendered: float,
+    payment_method: str, tendered: float, amount: float | None = None,
+    discount: float = 0.0, discount_reason: str = "",
 ) -> Order | None:
-    """Cashier closes an already-accepted bill. accepted -> paid.
+    """Apply a payment to an already-accepted bill.
 
-    Records a Payment row. The order must have been accepted by the
-    kitchen first; otherwise the cashier has nothing to bill yet.
+    A bill remains the single bill for its table for its entire lifecycle.
+    Multiple payments may be applied to that bill; it becomes paid only
+    when the completed payments cover the total.
 
     M20-empty — an empty open bill (no items) is DELETED entirely.
     No record, no payment, bill number freed for reuse.
@@ -329,6 +332,8 @@ def close_order(
     order = db.get(Order, order_id)
     if not order:
         raise ValueError("Order not found")
+    if order.status == "paid":
+        raise ValueError("Bill is already paid")
 
     is_empty_open = order.status == "open" and len(order.items) == 0
     if not is_empty_open:
@@ -343,19 +348,39 @@ def close_order(
         db.commit()
         return None
 
-    order.total = order.subtotal
+    order.total = round(max(0.0, float(order.subtotal) - max(0.0, discount)), 2)
+    paid_total = sum(
+        float(p.amount) for p in order.payments if p.status == "completed"
+    )
+    outstanding = round(max(0.0, float(order.total) - paid_total), 2)
+    if outstanding <= 0:
+        order.status = "paid"
+        db.commit()
+        db.refresh(order)
+        return order
 
-    tendered_amount = tendered if tendered > 0 else order.total
-    change = round(tendered_amount - order.total, 2)
+    payment_amount = outstanding if amount is None or amount <= 0 else round(float(amount), 2)
+    if payment_amount > outstanding + 0.005:
+        raise ValueError(f"Payment amount cannot exceed outstanding balance of {outstanding:.2f}")
+    if payment_amount <= 0:
+        raise ValueError("Payment amount must be greater than zero")
+
+    tendered_amount = tendered if tendered > 0 else payment_amount
+    if payment_method == "cash" and tendered_amount + 0.005 < payment_amount:
+        raise ValueError(f"Cash received is less than the payment amount of {payment_amount:.2f}")
+    change = round(max(0.0, tendered_amount - payment_amount), 2)
     payment = Payment(
         order=order,
         method=payment_method,
-        amount=order.total,
+        amount=payment_amount,
         tendered=tendered_amount,
         change=change,
+        status="completed",
+        amount_validated=True,
     )
     order.payments.append(payment)
-    order.status = "paid"
+    if paid_total + payment_amount + 0.005 >= float(order.total):
+        order.status = "paid"
     db.commit()
     db.refresh(order)
     return order

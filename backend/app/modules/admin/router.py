@@ -16,7 +16,7 @@ from app.schemas import (
 )
 from app.models import User as UserModel, Order, OrderItem, Payment, Category, Product, Role
 from sqlalchemy import select
-from app.core.security import require_role, require_permission
+from app.core.security import require_permission
 from app.services import crud
 from app.ws import manager
 
@@ -26,18 +26,18 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 # ---------- Roles ----------
 
 @router.get("/permissions")
-def list_permissions_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_permissions_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     from app.core.permissions import PERMISSIONS
     return {"permissions": list(PERMISSIONS)}
 
 
 @router.get("/roles", response_model=list[RoleOut])
-def list_roles_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_roles_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     return [RoleOut.model_validate(r) for r in crud.list_roles(db)]
 
 
 @router.post("/roles", response_model=RoleOut)
-def create_role_endpoint(payload: RoleIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def create_role_endpoint(payload: RoleIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     existing = db.scalar(select(Role).where(Role.name == payload.name))
     if existing:
         raise HTTPException(400, f"Role '{payload.name}' already exists")
@@ -46,7 +46,7 @@ def create_role_endpoint(payload: RoleIn, db: Session = Depends(get_db), user: U
 
 
 @router.patch("/roles/{rid}", response_model=RoleOut)
-def update_role_endpoint(rid: int, payload: RoleUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_role_endpoint(rid: int, payload: RoleUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     role = crud.update_role(db, rid, name=payload.name, label=payload.label, color=payload.color, sort=payload.sort, permissions=payload.permissions)
     if not role:
         raise HTTPException(404, "Role not found")
@@ -54,7 +54,7 @@ def update_role_endpoint(rid: int, payload: RoleUpdateIn, db: Session = Depends(
 
 
 @router.delete("/roles/{rid}")
-def delete_role_endpoint(rid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def delete_role_endpoint(rid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     try:
         ok = crud.delete_role(db, rid)
     except ValueError as e:
@@ -67,18 +67,18 @@ def delete_role_endpoint(rid: int, db: Session = Depends(get_db), user: UserMode
 # ---------- Categories ----------
 
 @router.get("/categories", response_model=list[CategoryOut])
-def list_categories_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_categories_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     return [CategoryOut.model_validate(c) for c in crud.list_categories(db)]
 
 
 @router.post("/categories", response_model=CategoryOut)
-def create_category_endpoint(payload: CategoryIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def create_category_endpoint(payload: CategoryIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     cat = crud.create_category(db, name=payload.name, color=payload.color, icon=payload.icon, sort=payload.sort, kind=payload.kind)
     return CategoryOut.model_validate(cat)
 
 
 @router.patch("/categories/{cid}", response_model=CategoryOut)
-def update_category_endpoint(cid: int, payload: CategoryUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_category_endpoint(cid: int, payload: CategoryUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     cat = crud.update_category(db, cid, name=payload.name, color=payload.color, icon=payload.icon, sort=payload.sort, kind=payload.kind)
     if not cat:
         raise HTTPException(404, "Category not found")
@@ -86,7 +86,7 @@ def update_category_endpoint(cid: int, payload: CategoryUpdateIn, db: Session = 
 
 
 @router.delete("/categories/{cid}")
-def delete_category_endpoint(cid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def delete_category_endpoint(cid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     try:
         ok = crud.delete_category(db, cid)
     except ValueError as e:
@@ -99,18 +99,18 @@ def delete_category_endpoint(cid: int, db: Session = Depends(get_db), user: User
 # ---------- Products ----------
 
 @router.get("/products", response_model=list[ProductOut])
-def list_products_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_products_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     return [ProductOut.model_validate(p) for p in crud.list_products(db)]
 
 
 @router.post("/products", response_model=ProductOut)
-def create_product_endpoint(payload: ProductIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def create_product_endpoint(payload: ProductIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     p = crud.create_product(db, name=payload.name, description=payload.description, price=payload.price, category_id=payload.category_id, image=payload.image, active=payload.active, sort=payload.sort, cost=payload.cost, kind=payload.kind)
     return ProductOut.model_validate(p)
 
 
 @router.patch("/products/{pid}", response_model=ProductOut)
-def update_product_endpoint(pid: int, payload: ProductUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_product_endpoint(pid: int, payload: ProductUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     p = crud.update_product(db, pid, name=payload.name, description=payload.description, price=payload.price, category_id=payload.category_id, image=payload.image, active=payload.active, sort=payload.sort, cost=payload.cost, kind=payload.kind)
     if not p:
         raise HTTPException(404, "Product not found")
@@ -118,7 +118,7 @@ def update_product_endpoint(pid: int, payload: ProductUpdateIn, db: Session = De
 
 
 @router.delete("/products/{pid}")
-def delete_product_endpoint(pid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def delete_product_endpoint(pid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
     ok = crud.delete_product(db, pid)
     if not ok:
         raise HTTPException(404, "Product not found")
@@ -128,12 +128,12 @@ def delete_product_endpoint(pid: int, db: Session = Depends(get_db), user: UserM
 # ---------- Tables ----------
 
 @router.get("/tables", response_model=list[TableOut])
-def list_tables_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_tables_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     return [TableOut.model_validate(t) for t in crud.list_tables(db, include_inactive=True)]
 
 
 @router.post("/tables", response_model=TableOut)
-async def create_table_endpoint(payload: TableIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+async def create_table_endpoint(payload: TableIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     t = crud.create_table(db, name=payload.name, seats=payload.seats, active=payload.active, section=payload.section, sort=payload.sort)
     out = TableOut.model_validate(t)
     await manager.broadcast("table_created", out.model_dump())
@@ -141,7 +141,7 @@ async def create_table_endpoint(payload: TableIn, db: Session = Depends(get_db),
 
 
 @router.patch("/tables/{tid}", response_model=TableOut)
-async def update_table_endpoint(tid: int, payload: TableUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+async def update_table_endpoint(tid: int, payload: TableUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     t = crud.update_table(db, tid, name=payload.name, seats=payload.seats, active=payload.active, section=payload.section, sort=payload.sort)
     if not t:
         raise HTTPException(404, "Table not found")
@@ -151,7 +151,7 @@ async def update_table_endpoint(tid: int, payload: TableUpdateIn, db: Session = 
 
 
 @router.delete("/tables/{tid}")
-async def delete_table_endpoint(tid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+async def delete_table_endpoint(tid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     ok = crud.delete_table(db, tid)
     if not ok:
         raise HTTPException(404, "Table not found")
@@ -162,13 +162,13 @@ async def delete_table_endpoint(tid: int, db: Session = Depends(get_db), user: U
 # ---------- Table Sections (M28) ----------
 
 @router.get("/table-sections")
-def get_table_sections_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def get_table_sections_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     from app.core.config import get_table_sections
     return {"sections": get_table_sections()}
 
 
 @router.put("/table-sections")
-def put_table_sections_endpoint(payload: dict, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def put_table_sections_endpoint(payload: dict, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_tables"))):
     """Replace the table sections list. Body: `{"sections": [{"name", "color"}, ...]}`."""
     from app.core.config import set_table_sections
     sections = payload.get("sections") if isinstance(payload, dict) else None
@@ -178,18 +178,18 @@ def put_table_sections_endpoint(payload: dict, db: Session = Depends(get_db), us
 # ---------- Users ----------
 
 @router.get("/users", response_model=list[UserOut])
-def list_users_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def list_users_endpoint(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     return [UserOut.model_validate(u) for u in crud.list_users(db)]
 
 
 @router.post("/users", response_model=UserOut)
-def create_user_endpoint(payload: UserIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def create_user_endpoint(payload: UserIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     u = crud.create_user(db, name=payload.name, pin=payload.pin, role=payload.role, permissions=payload.permissions, active=payload.active)
     return UserOut.model_validate(u)
 
 
 @router.patch("/users/{uid}", response_model=UserOut)
-def update_user_endpoint(uid: int, payload: UserUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def update_user_endpoint(uid: int, payload: UserUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     u = crud.update_user(db, uid, name=payload.name, pin=payload.pin, role=payload.role, permissions=payload.permissions, active=payload.active)
     if not u:
         raise HTTPException(404, "User not found")
@@ -197,7 +197,7 @@ def update_user_endpoint(uid: int, payload: UserUpdateIn, db: Session = Depends(
 
 
 @router.delete("/users/{uid}")
-def delete_user_endpoint(uid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_role("admin"))):
+def delete_user_endpoint(uid: int, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_users"))):
     ok = crud.delete_user(db, uid)
     if not ok:
         raise HTTPException(404, "User not found")
@@ -426,7 +426,7 @@ def get_bill_history(
     status: Optional[str] = Query(None),
     limit: int = Query(500),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("admin.reports")),
+    user: UserModel = Depends(require_permission("history.view")),
 ):
     start = _parse_date(start_date if start_date else None)
     end_dt = _parse_date(end_date if end_date else None) if end_date else None

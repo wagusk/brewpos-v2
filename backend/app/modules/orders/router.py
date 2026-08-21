@@ -24,11 +24,11 @@ log = logging.getLogger("brewpos.orders")
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
 
-def _fire_kitchen_ticket(db: Session, order) -> None:
+def _fire_kitchen_ticket(db: Session, order, only_new: bool = False) -> None:
     try:
         from app.services import tickets, printer
         for station in ("kitchen", "bar"):
-            payload = tickets.build_station_ticket(db, order, station)
+            payload = tickets.build_station_ticket(db, order, station, only_new=only_new)
             if payload is None:
                 continue
             result = printer.auto_print_on_event("on_send_to_kitchen", payload)
@@ -118,7 +118,13 @@ async def update_endpoint(order_id: int, payload: OrderStatusIn, db: Session = D
 
 
 @router.post("/{order_id}/accept", response_model=OrderOut)
-async def accept_endpoint(order_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("kitchen.serve"))):
+async def accept_endpoint(order_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if not can(user, "order.open") and not can(user, "kitchen.serve"):
+        raise HTTPException(403, "Missing permission: order.open or kitchen.serve")
+    order = get_order(db, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    _fire_kitchen_ticket(db, order, only_new=True)
     try:
         order = accept_order(db, order_id)
     except ValueError as e:
@@ -157,7 +163,15 @@ async def close_endpoint(order_id: int, payload: CloseOrderIn, db: Session = Dep
             raise HTTPException(400, "Discount reason is required")
 
     try:
-        order = close_order(db, order_id, payload.payment_method, payload.tendered, discount=resolved_discount, discount_reason=applied_reason)
+        order = close_order(
+            db,
+            order_id,
+            payload.payment_method,
+            payload.tendered,
+            amount=payload.amount,
+            discount=resolved_discount,
+            discount_reason=applied_reason,
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -198,10 +212,19 @@ async def void_endpoint(order_id: int, payload: VoidOrderIn, db: Session = Depen
 
 @router.post("/{order_id}/items", response_model=OrderOut)
 async def append_items_endpoint(order_id: int, payload: AppendItemsIn, db: Session = Depends(get_db), user: User = Depends(require_permission("order.append"))):
+    existing = get_order(db, order_id)
+    if not existing:
+        raise HTTPException(404, "Order not found")
+    was_open = existing.status == "open"
     try:
         order = append_items(db, order_id, payload, user)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    # Newly appended items on an existing active bill must be sent to the
+    # stations immediately. Newly opened bills are accepted by the POS flow
+    # after this endpoint, which handles their first station ticket.
+    if not was_open:
+        _fire_kitchen_ticket(db, order, only_new=True)
     out = to_order_out(order)
     await manager.broadcast("order_updated", out.model_dump())
     return out

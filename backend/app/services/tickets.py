@@ -18,7 +18,7 @@ from app.services import escpos
 
 
 # ── Station-scoped kitchen ticket ───────────────────────────────────
-def build_station_ticket(db: Session, order: Order, station: str) -> bytes | None:
+def build_station_ticket(db: Session, order: Order, station: str, only_new: bool = False) -> bytes | None:
     """ESC/POS bytes for the chit printed at `station`.
 
     Filters `order.items` so only items the station should see end up on
@@ -40,6 +40,8 @@ def build_station_ticket(db: Session, order: Order, station: str) -> bytes | Non
         if (it.station or "kitchen") not in allowed:
             continue
         if it.status in ("cancelled", "served"):
+            continue
+        if only_new and it.status != "new":
             continue
         mods = [m.name for m in it.modifiers]
         items.append({

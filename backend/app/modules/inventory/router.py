@@ -9,7 +9,7 @@ from app.modules.inventory.service import get_stock_levels, update_stock
 router = APIRouter(prefix="/api/admin/inventory", tags=["inventory"])
 
 @router.get("", response_model=list[StockOut])
-def list_stock(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("settings.view"))):
+def list_stock(db: Session = Depends(get_db), user: UserModel = Depends(require_permission("inventory.view"))):
     return [StockOut.model_validate(s) for s in get_stock_levels(db)]
 
 @router.put("/products/{product_id}", response_model=StockOut)

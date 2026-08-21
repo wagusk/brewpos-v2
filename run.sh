@@ -131,7 +131,7 @@ run_server() {
   echo -e "${GREEN}==> Starting Brew-POS v2 Server on port $PORT...${NC}"
   echo -e "    URL: ${CYAN}http://localhost:$PORT${NC}"
   echo -e "    API Docs: ${CYAN}http://localhost:$PORT/docs${NC}"
-  echo -e "    Default logins: Admin (9999), Cashier (1111), Waiter (2222), Kitchen/Bar (3333)"
+  echo -e "    Default logins: Superuser (8888), Admin (9999), Cashier (1111), Waiter (2222), Kitchen/Bar (3333)"
   echo -e "${YELLOW}    Press Ctrl+C to stop the server.${NC}\n"
 
   exec uvicorn app.main:app --app-dir "$ROOT/backend" --host "$HOST" --port "$PORT"

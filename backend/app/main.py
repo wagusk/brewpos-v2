@@ -99,6 +99,18 @@ with current_engine().begin() as _migrate:
         except Exception:
             pass
 
+# One active bill per table. The service layer returns a readable validation
+# error; this unique partial index also protects against concurrent requests.
+with current_engine().begin() as _migrate:
+    try:
+        _migrate.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_one_active_bill_per_table "
+            "ON orders (table_id) WHERE table_id IS NOT NULL "
+            "AND status IN ('open', 'accepted', 'preparing', 'ready', 'served')"
+        ))
+    except Exception as _index_error:
+        logging.warning("Could not create single-bill table index: %s", _index_error)
+
 # M35 — additive column migrations for payment processing
 with current_engine().begin() as _migrate:
     for _col, _ddl in (

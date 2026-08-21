@@ -13,6 +13,8 @@ PERMISSIONS = (
     "menu.view",
     "admin.view",
     "settings.view",
+    "inventory.view",
+    "history.view",
     # Task permissions
     "order.open",        # Create new order / open bill
     "order.close",       # Close bill / process payment
@@ -32,6 +34,7 @@ PERMISSIONS = (
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "admin": set(PERMISSIONS),
     "master": set(PERMISSIONS),
+    "superuser": set(PERMISSIONS),
     # Cashier: can open orders, close bills
     "cashier": {
         "dashboard.view", "pos.view", "menu.view",
@@ -62,6 +65,8 @@ def default_permissions(role: str) -> list[str]:
 
 def normalise_permissions(role: str, permissions: Iterable[str] | None) -> list[str]:
     """Return valid explicit permissions; new users fall back to role defaults."""
+    if role in ("admin", "master", "superuser"):
+        return sorted(PERMISSIONS)
     if permissions is None:
         return default_permissions(role)
     allowed = set(PERMISSIONS)
@@ -72,7 +77,7 @@ def can(user, permission: str) -> bool:
     """Admin and Master have emergency full-access role; others use persisted grants or role defaults."""
     if not user:
         return False
-    if user.role in ("admin", "master"):
+    if user.role in ("admin", "master", "superuser"):
         return True
     user_perms = set(user.permissions or [])
     role_perms = set(default_permissions(user.role))
