@@ -1,0 +1,8 @@
+export { default as Login } from './Login'
+export { default as Dashboard } from './Dashboard'
+export { default as POS } from './POS'
+export { default as Station } from './Station'
+export { default as Cashier } from './Cashier'
+export { default as Admin } from './Admin'
+export { default as SettingsPage } from './Settings'
+export { default as Inventory } from './Inventory'

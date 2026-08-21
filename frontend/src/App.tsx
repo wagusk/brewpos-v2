@@ -1,57 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
-  BarChart3,
   ChefHat,
-  CircleDollarSign,
   Coffee,
-  Database,
-  Eye,
-  FileText,
-  Grid3X3,
-  HandCoins,
   LayoutDashboard,
   LogOut,
-  Menu as MenuIcon,
-  Pencil,
-  Printer,
-  Plus,
-  RefreshCw,
   Settings,
   ShoppingBag,
-  SlidersHorizontal,
-  Store,
-  Tags,
   Users,
   Utensils,
-  Trash2,
-  X,
 } from "lucide-react";
 import { api, getToken, setToken } from "./api";
-import type {
-  Category,
-  DiscountPolicy,
-  Menu,
-  ModuleState,
-  Order,
-  Product,
-  Table,
-  Tax,
-  User,
-} from "./types";
-import { can, Empty, Loading, Metric, money, PanelTitle, title, useToast, type Screen, type Toast } from "./common";
-import Login from "./screens/Login";
-import POS from "./screens/POS";
-import Station from "./screens/Station";
-import Cashier from "./screens/Cashier";
-import Admin from "./screens/Admin";
-import SettingsPage from "./screens/Settings";
-import {
-  DEFAULT_UI,
-  readUISettings,
-  saveUISettings,
-  type UISettings,
-} from "./theme";
+import type { ModuleState, User } from "./types";
+import { can, title, useToast, type Screen } from "./common";
+import { Login, POS, Station, Cashier, Admin, SettingsPage } from "./screens";
 
 
 function App() {
