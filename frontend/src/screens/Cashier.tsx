@@ -13,10 +13,8 @@ import {
   money,
   PanelTitle,
   title,
-  type Toast,
+  type Notify,
 } from "../common";
-
-type Notify = (m: string, k?: Toast["kind"]) => void;
 
 export default function Cashier({
   user,

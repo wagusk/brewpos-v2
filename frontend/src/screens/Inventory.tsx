@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Pencil, RefreshCw } from "lucide-react";
 import type { Menu } from "../types";
 import { api } from "../api";
-import { Empty, PanelTitle, type Toast } from "../common";
-
-type Notify = (m: string, k?: Toast["kind"]) => void;
+import { Empty, PanelTitle, type Notify, type Toast } from "../common";
 
 export default function Inventory({
   notify,

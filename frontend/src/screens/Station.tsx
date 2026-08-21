@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import type { Order, User } from "../types";
 import { api } from "../api";
-import { can, Empty, title, type Toast } from "../common";
+import { can, Empty, title, type Notify, type Toast } from "../common";
 
-type Notify = (m: string, k?: Toast["kind"]) => void;
 type StationKind = "kitchen" | "bar";
 
 export default function Station({

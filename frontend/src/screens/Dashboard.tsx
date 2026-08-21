@@ -15,11 +15,10 @@ import {
   money,
   PanelTitle,
   title,
+  type Notify,
   type Screen,
   type Toast,
 } from "../common";
-
-type Notify = (m: string, k?: Toast["kind"]) => void;
 
 export default function Dashboard({
   user,

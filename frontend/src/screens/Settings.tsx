@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DiscountPolicy, Settings as ApiSettings, Tax, User } from "../types";
 import { api } from "../api";
-import { can, Loading, title, type Toast } from "../common";
+import { can, Loading, title, type Notify, type Toast } from "../common";
 import { readUISettings, saveUISettings, type UISettings } from "../theme";
 import {
   GeneralSettings,
@@ -11,8 +11,6 @@ import {
   PrinterSettings,
   DatabaseSettings,
 } from "./settings";
-
-type Notify = (m: string, k?: Toast["kind"]) => void;
 
 export default function SettingsPage({
   user,

@@ -3,9 +3,7 @@ import type { CSSProperties } from "react";
 import { Grid3X3, RefreshCw, X } from "lucide-react";
 import type { Menu, Order, Product, Table, User } from "../types";
 import { api } from "../api";
-import { can, Loading, money, PanelTitle, type Toast } from "../common";
-
-type Notify = (m: string, k?: Toast["kind"]) => void;
+import { can, Loading, money, PanelTitle, type Notify, type Toast } from "../common";
 
 type CartLine = {
   product: Product;
