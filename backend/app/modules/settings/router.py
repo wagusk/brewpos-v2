@@ -19,6 +19,7 @@ from app.core.config import (
     get_text_size, set_text_size, set_active_db_url,
     reset_persisted_settings,
     get_order_approval_required, set_order_approval_required,
+    get_pos_ops, set_pos_ops,
 )
 from app.core.security import current_user, require_role, require_permission
 from app.models import User as UserModel
@@ -264,3 +265,33 @@ def update_order_approval(payload: OrderApprovalIn, db: Session = Depends(get_db
     if payload.order_approval_required is not None:
         set_order_approval_required(payload.order_approval_required)
     return _build_settings_out(db)
+
+
+# ── POS operations ───────────────────────────────────────────────────
+class PosOpsOut(BaseModel):
+    auto_print_on_send_to_kitchen: bool
+    auto_print_on_payment: bool
+    default_station: str
+    terminal_name: str
+    terminal_location: str
+
+
+class PosOpsIn(BaseModel):
+    auto_print_on_send_to_kitchen: bool | None = None
+    auto_print_on_payment: bool | None = None
+    default_station: str | None = None
+    terminal_name: str | None = None
+    terminal_location: str | None = None
+
+
+@router.get("/pos-ops", response_model=PosOpsOut)
+def get_pos_ops_endpoint(user: UserModel = Depends(require_permission("settings.view"))):
+    return get_pos_ops()
+
+
+@router.put("/pos-ops", response_model=PosOpsOut)
+def update_pos_ops(payload: PosOpsIn, user: UserModel = Depends(require_permission("admin.manage_settings"))):
+    try:
+        return set_pos_ops(payload.model_dump(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(400, str(e))

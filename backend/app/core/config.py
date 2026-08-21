@@ -35,6 +35,63 @@ def set_text_size(size: float) -> None:
     _persist(data)
 
 
+# ── POS operations (per-terminal knobs) ─────────────────────────────
+DEFAULT_AUTO_PRINT_KITCHEN = True
+DEFAULT_AUTO_PRINT_RECEIPT = True
+DEFAULT_STATION = "kitchen"
+DEFAULT_TERMINAL_NAME = "Front Counter"
+DEFAULT_TERMINAL_LOCATION = ""
+
+
+def get_pos_ops() -> dict:
+    """POS-terminal-specific knobs (terminal identity + automation toggles)."""
+    p = _load_persisted()
+    return {
+        "auto_print_on_send_to_kitchen": bool(
+            p.get("auto_print_on_send_to_kitchen", DEFAULT_AUTO_PRINT_KITCHEN)
+        ),
+        "auto_print_on_payment": bool(
+            p.get("auto_print_on_payment", DEFAULT_AUTO_PRINT_RECEIPT)
+        ),
+        "default_station": str(p.get("default_station") or DEFAULT_STATION),
+        "terminal_name": str(p.get("terminal_name") or DEFAULT_TERMINAL_NAME).strip()
+        or DEFAULT_TERMINAL_NAME,
+        "terminal_location": str(p.get("terminal_location") or "").strip(),
+    }
+
+
+def set_pos_ops(updates: dict) -> dict:
+    """Persist any subset of POS operations knobs. Returns the full new state."""
+    if not isinstance(updates, dict):
+        raise ValueError("pos ops payload must be an object")
+    data = _load_persisted()
+    if "auto_print_on_send_to_kitchen" in updates:
+        data["auto_print_on_send_to_kitchen"] = bool(
+            updates["auto_print_on_send_to_kitchen"]
+        )
+    if "auto_print_on_payment" in updates:
+        data["auto_print_on_payment"] = bool(updates["auto_print_on_payment"])
+    if "default_station" in updates:
+        station = str(updates["default_station"] or "").strip().lower()
+        if station not in ("kitchen", "bar", "both"):
+            raise ValueError("default_station must be kitchen, bar, or both")
+        data["default_station"] = station
+    if "terminal_name" in updates:
+        name = str(updates["terminal_name"] or "").strip()
+        if not name:
+            raise ValueError("terminal_name cannot be empty")
+        if len(name) > 80:
+            raise ValueError("terminal_name too long (max 80 chars)")
+        data["terminal_name"] = name
+    if "terminal_location" in updates:
+        loc = str(updates["terminal_location"] or "").strip()
+        if len(loc) > 120:
+            raise ValueError("terminal_location too long (max 120 chars)")
+        data["terminal_location"] = loc
+    _persist(data)
+    return get_pos_ops()
+
+
 # ── Table sections (M28) ──────────────────────────────────────────
 DEFAULT_TABLE_SECTIONS: list[dict] = [
     {"name": "Main Hall", "color": "#5b8def"},
