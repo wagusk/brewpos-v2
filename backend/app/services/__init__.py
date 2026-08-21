@@ -1,6 +1,6 @@
 """Business logic. Keep these lean — one service per resource."""
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload
 
@@ -47,7 +47,7 @@ def get_tables_with_orders(db: Session) -> list[dict]:
     M28 — also returns `section` and `sort` so the UI can group tiles
     by configurable section without an extra round-trip.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     tables = db.scalars(select(Table).order_by(Table.sort, Table.name)).all()
     result = []
     for table in tables:
@@ -309,7 +309,7 @@ def accept_order(db: Session, order_id: int) -> Order:
         if item.status == "new":
             item.status = "preparing"
             if item.sent_at is None:
-                item.sent_at = datetime.utcnow()
+                item.sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(order)
     return order
@@ -472,7 +472,7 @@ def update_order_status(db: Session, order_id: int, status: str | None, item_id:
 
 
 def today_stats(db: Session) -> dict:
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(tzinfo=None).replace(hour=0, minute=0, second=0, microsecond=0)
     paid_today = db.scalars(
         select(Order).where(Order.status == "paid", Order.created_at >= today_start)
     ).all()
@@ -501,7 +501,7 @@ def void_order(db: Session, order_id: int, reason: str, user: User) -> Order:
     if order.status == "void":
         raise ValueError("Order is already voided")
 
-    stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    stamp = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
     for item in order.items:
         if item.status not in ("cancelled",):
             item.status = "void"
@@ -542,7 +542,7 @@ def cancel_order(db: Session, order_id: int, reason: str, item_id: int | None = 
         return None
 
     reason = (reason or "").strip() or "sold out"
-    stamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    stamp = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M")
 
     if item_id is not None:
         # Item-level cancellation

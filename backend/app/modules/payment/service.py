@@ -19,7 +19,7 @@ Rules:
 """
 from __future__ import annotations
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 
@@ -160,7 +160,7 @@ def initiate_payment(db: Session, payload: InitiatePaymentIn) -> Payment:
         payment.status = "failed"
         payment.error_message = result.error[:200]
 
-    payment.updated_at = datetime.utcnow()
+    payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(payment)
     log.info("Payment %s initiated for order %s via %s",
@@ -193,14 +193,14 @@ def confirm_payment(db: Session, payment_id: int) -> Payment:
         log.exception("Provider confirm failed for payment %s", payment_id)
         payment.status = "failed"
         payment.error_message = f"Provider error: {e}"[:200]
-        payment.updated_at = datetime.utcnow()
+        payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
         raise PaymentError(f"Payment provider error: {e}")
 
     if not result.ok:
         payment.status = "failed"
         payment.error_message = result.error[:200]
-        payment.updated_at = datetime.utcnow()
+        payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
         log.warning("Payment %s failed: %s", payment_id, result.error)
         return payment
@@ -216,14 +216,14 @@ def confirm_payment(db: Session, payment_id: int) -> Payment:
                 f"Amount mismatch: expected ${amount:.2f}, "
                 f"provider confirmed ${float(payment.amount):.2f}"
             )[:200]
-            payment.updated_at = datetime.utcnow()
+            payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             raise PaymentError(payment.error_message)
 
     # Success — mark payment completed
     payment.status = "completed"
     payment.error_message = ""
-    payment.updated_at = datetime.utcnow()
+    payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Transition order to paid if total covered
     total_paid = float(sum(
@@ -264,7 +264,7 @@ def retry_payment(db: Session, payment_id: int) -> Payment:
     except Exception as e:
         log.exception("Provider re-initiate failed for payment %s", payment_id)
         payment.error_message = f"Provider error: {e}"[:200]
-        payment.updated_at = datetime.utcnow()
+        payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
         raise PaymentError(f"Payment provider error: {e}")
 
@@ -277,7 +277,7 @@ def retry_payment(db: Session, payment_id: int) -> Payment:
         payment.status = "failed"
         payment.error_message = result.error[:200]
 
-    payment.updated_at = datetime.utcnow()
+    payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(payment)
     log.info("Payment %s retried — new status: %s", payment_id, payment.status)
@@ -294,7 +294,7 @@ def cancel_payment(db: Session, payment_id: int) -> Payment:
 
     payment.status = "cancelled"
     payment.error_message = ""
-    payment.updated_at = datetime.utcnow()
+    payment.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(payment)
     log.info("Payment %s cancelled", payment_id)

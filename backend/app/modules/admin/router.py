@@ -1,5 +1,5 @@
 """Admin module — users, roles, categories, products, tables CRUD + reports."""
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -266,11 +266,11 @@ def _parse_date(date_str: str | None) -> datetime:
             return datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:
             pass
-    return datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    return datetime.now(timezone.utc).replace(tzinfo=None).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _get_date_range(period: str, start_date: datetime | None = None, end_date: datetime | None = None) -> tuple[datetime, datetime | None]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if period == "custom" and start_date and end_date:
         return start_date, end_date
     if period == "all":

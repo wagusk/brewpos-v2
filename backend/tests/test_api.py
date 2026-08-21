@@ -16,9 +16,16 @@ def test_health():
     assert response.json()["ok"] is True
 
 def test_root():
+    # / serves the SPA index when frontend/dist is built, or a JSON
+    # descriptor when running backend-only. Both are valid responses.
     response = client.get("/")
     assert response.status_code == 200
-    assert "Brew-POS" in response.json()["app"]
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type:
+        assert "Brew-POS" in response.json()["app"]
+    else:
+        assert "text/html" in content_type
+        assert "<html" in response.text.lower()
 
 def test_login_success():
     response = client.post("/api/auth/login", json={"pin": "9999"})
