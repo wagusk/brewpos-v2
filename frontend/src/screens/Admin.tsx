@@ -8,6 +8,9 @@ import { ADMIN_MENU, pickFirstDetailId, type AdminMenuItem, type AdminMenuSectio
 import ResourceTable from "./admin/ResourceTable";
 import Reports from "./admin/Reports";
 import BillHistory from "./admin/BillHistory";
+import AdminDashboard from "./admin/AdminDashboard";
+
+const OVERVIEW_ITEM: AdminMenuItem = { id: "overview", label: "Overview", path: "" };
 
 export default function Admin({
   user,
@@ -19,8 +22,8 @@ export default function Admin({
   setScreen: (s: Screen) => void;
 }) {
   const [sectionId, setSectionId] = useState("catalog");
-  const [itemId, setItemId] = useState("products");
-  const [detailId, setDetailId] = useState("day");
+  const [itemId, setItemId] = useState("overview");
+  const [detailId, setDetailId] = useState("default");
   const [refreshKey, setRefreshKey] = useState(0);
   const [permissionCatalog, setPermissionCatalog] = useState<string[]>([]);
   const visibleMenu = ADMIN_MENU.filter(
@@ -29,13 +32,15 @@ export default function Admin({
   );
   const section =
     visibleMenu.find((entry) => entry.id === sectionId) ?? visibleMenu[0];
+  const itemsWithOverview: AdminMenuItem[] = [OVERVIEW_ITEM, ...section.items];
   const item =
-    section.items.find((entry) => entry.id === itemId) ?? section.items[0];
+    itemsWithOverview.find((entry) => entry.id === itemId) ??
+    itemsWithOverview[0];
   const third = item.third ?? [];
   const selectSection = (nextSection: AdminMenuSection) => {
     setSectionId(nextSection.id);
-    setItemId(nextSection.items[0].id);
-    setDetailId(pickFirstDetailId(nextSection.items[0]));
+    setItemId("overview");
+    setDetailId(pickFirstDetailId(OVERVIEW_ITEM));
   };
   const selectItem = (nextItem: AdminMenuItem) => {
     setItemId(nextItem.id);
@@ -77,7 +82,7 @@ export default function Admin({
       </aside>
       <aside className="admin-menu-column">
         <span className="admin-column-label">{section.label}</span>
-        {section.items
+        {itemsWithOverview
         .filter((entry) =>
           (entry.id !== "inventory" || canViewInventory) &&
           (entry.id !== "reports" || can(user, "admin.reports")) &&
@@ -90,7 +95,13 @@ export default function Admin({
               onClick={() => selectItem(entry)}
             >
               <strong>{entry.label}</strong>
-              <small>{entry.id === "reports" ? "Choose a reporting period" : "Manage records"}</small>
+              <small>
+                {entry.id === "overview"
+                  ? "Workspace snapshot"
+                  : entry.id === "reports"
+                    ? "Choose a reporting period"
+                    : "Manage records"}
+              </small>
             </button>
           ))}
       </aside>
@@ -123,7 +134,23 @@ export default function Admin({
             </button>
           </div>
         </div>
-        {item.id === "reports" ? (
+        {item.id === "overview" ? (
+          <AdminDashboard
+            key={refreshKey}
+            user={user}
+            notify={notify}
+            onNavigate={(sectionId, targetItemId) => {
+              setSectionId(sectionId);
+              setItemId(targetItemId);
+              const targetSection = ADMIN_MENU.find((s) => s.id === sectionId);
+              const targetItem = targetSection?.items.find(
+                (entry) => entry.id === targetItemId,
+              );
+              setDetailId(pickFirstDetailId(targetItem ?? OVERVIEW_ITEM));
+              setRefreshKey((v) => v + 1);
+            }}
+          />
+        ) : item.id === "reports" ? (
           <Reports key={refreshKey + detailId} notify={notify} selectedPeriod={detailId} />
         ) : item.id === "history" ? (
           <BillHistory key={refreshKey} notify={notify} />

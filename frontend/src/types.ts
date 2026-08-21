@@ -13,3 +13,4 @@ export type Settings = { text_size: number; database_url: string; default_databa
 export type PrinterSettings = { mode: string; network: Record<string, unknown>; usb: Record<string, unknown>; paper: Record<string, unknown>; auto_print: Record<string, unknown>; dry_run: boolean }
 export type DiscountPolicy = { max_discount_pct: number; presets: { label: string; mode: string; value: number }[]; require_reason: boolean }
 export type Tax = { name: string; rate: number }
+export type PosOpsSettings = { auto_print_on_send_to_kitchen: boolean; auto_print_on_payment: boolean; default_station: string; terminal_name: string; terminal_location: string }

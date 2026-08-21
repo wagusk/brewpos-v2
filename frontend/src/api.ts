@@ -1,4 +1,4 @@
-import type { Category, DiscountPolicy, Menu, ModuleState, Order, Payment, PrinterSettings, Settings, Table, Tax, User } from './types'
+import type { Category, DiscountPolicy, Menu, ModuleState, Order, Payment, PosOpsSettings, PrinterSettings, Settings, Table, Tax, User } from './types'
 
 const API_ROOT = import.meta.env.VITE_API_URL ?? ''
 let token = localStorage.getItem('brewpos_token') ?? ''
@@ -52,6 +52,8 @@ export const api = {
   updateTaxes: (body: unknown) => request<Tax[]>('/api/admin/settings/tax', json('PUT', body)),
   discount: () => request<DiscountPolicy>('/api/admin/settings/discount'),
   updateDiscount: (body: unknown) => request<DiscountPolicy>('/api/admin/settings/discount', json('PUT', body)),
+  posOps: () => request<PosOpsSettings>('/api/admin/settings/pos-ops'),
+  updatePosOps: (body: Partial<PosOpsSettings>) => request<PosOpsSettings>('/api/admin/settings/pos-ops', json('PUT', body)),
   stock: () => request<unknown[]>('/api/admin/inventory'),
   updateStock: (id: number, body: unknown) => request<unknown>(`/api/admin/inventory/products/${id}`, json('PUT', body)),
   vouchers: () => request<unknown[]>('/api/vouchers'),
