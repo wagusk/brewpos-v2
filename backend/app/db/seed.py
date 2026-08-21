@@ -6,7 +6,7 @@ from app.modules.roles.models import Role
 from app.modules.menu.models import Category, Product, ModifierGroup, ModifierOption
 from app.modules.tables.models import Table
 from app.core.security import hash_pin
-from app.core.permissions import default_permissions
+from app.core.permissions import default_permissions, PERMISSIONS
 from sqlalchemy import text
 
 
@@ -124,18 +124,25 @@ def run():
         # Users
         for name, pin, role in SEED_USERS:
             existing = db.query(User).filter(User.name == name).first()
+            role_perms = default_permissions(role)
             if existing:
                 existing.pin = hash_pin(pin)
                 existing.role = role
                 existing.active = True
-                if role == "superuser":
-                    existing.permissions = default_permissions(role)
+                # Refresh permissions on every seed so role/default changes
+                # propagate to legacy users whose persisted array is empty
+                # or out of date. Admins keep all permissions regardless of
+                # what default_permissions returns (which is empty for them).
+                if role in ("admin", "master", "superuser"):
+                    existing.permissions = sorted(PERMISSIONS)
+                else:
+                    existing.permissions = role_perms
             else:
                 db.add(User(
                     name=name,
                     pin=hash_pin(pin),
                     role=role,
-                    permissions=default_permissions(role),
+                    permissions=sorted(PERMISSIONS) if role in ("admin", "master", "superuser") else role_perms,
                     active=True,
                 ))
 

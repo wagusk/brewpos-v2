@@ -54,9 +54,28 @@ def test_admin_users_authorized():
     # Login as admin
     login_res = client.post("/api/auth/login", json={"pin": "9999"})
     token = login_res.json()["access_token"]
-    
+
     response = client.get("/api/admin/users", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     users = response.json()
     assert isinstance(users, list)
     assert len(users) > 0
+
+
+def test_cashier_checkout_succeeds():
+    """Regression: cashier's persisted permissions must include order.open.
+
+    Previously, re-seed only refreshed superuser permissions, leaving every
+    other user with an empty permissions array. The frontend Save button
+    gates on can(user, 'order.open'), which returned false and disabled the
+    button; meanwhile the API also returned 403 Missing permission.
+    """
+    login_res = client.post("/api/auth/login", json={"pin": "1111"})
+    assert login_res.status_code == 200
+    user = login_res.json()["user"]
+    assert user["role"] == "cashier"
+    # The core regression: persisted permissions must be populated so the
+    # frontend can() check passes and the server-side permission check
+    # accepts the checkout request.
+    assert "order.open" in user["permissions"], user["permissions"]
+    assert "order.close" in user["permissions"], user["permissions"]
