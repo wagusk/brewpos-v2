@@ -90,13 +90,39 @@ The `superuser` role always has every permission enabled.
 The frontend provides role-aware workspaces for point of sale, kitchen, bar,
 cashier, administration, inventory, and settings. Navigation is filtered by
 the authenticated user's permissions and enabled backend modules. The active
-implementation is the consolidated [App.tsx](frontend/src/App.tsx) workspace,
-with the API client in [api.ts](frontend/src/api.ts), shared styles, types, and
-small reusable POS components.
+implementation is split across `frontend/src/App.tsx` (router + shell, ~235
+lines) and per-screen modules under `frontend/src/screens/`:
+
+|| Screen | File | Purpose |
+||---|---|---|
+|| `Login` | `screens/Login.tsx` | PIN pad with role-based session restore |
+|| `POS` | `screens/POS.tsx` | Table grid, bill editor, cart, save + print + cancel |
+|| `Station` | `screens/Station.tsx` | Kitchen and bar ticket queues (filtered by station) |
+|| `Cashier` | `screens/Cashier.tsx` | Partial-payment flow with bill picker + method |
+|| `Admin` | `screens/Admin.tsx` | 3-level menu (section → item → period) for products, categories, tables, users, roles, inventory, sales reports, bill history |
+|| `Settings` | `screens/Settings.tsx` | 6-tab settings (general, appearance, tax, discount, printer, database) |
+|| `Inventory` | `screens/Inventory.tsx` | Stock levels and threshold editor (admin sub-tab) |
+|| `Dashboard` | `screens/Dashboard.tsx` | Floor status + role-based access list (currently inactive UI) |
+
+Cross-cutting code lives in:
+
+|| Directory | Purpose |
+||---|---|
+|| `App.tsx` | Router shell + sidebar |
+|| `api.ts` | Typed API client (all endpoints wired, Bearer auth) |
+|| `types.ts` | Shared TypeScript types (`User`, `Menu`, `Order`, etc.) |
+|| `theme.ts` | UI token storage (radii, scale) persisted to `localStorage` |
+|| `common/` | Shared helpers: `can()`, `useToast()`, `money()`, `title()`, `PanelTitle`/`Loading`/`Empty`/`Metric` chrome, `Screen` type, `Notify` type |
+|| `screens/settings/` | Settings tab sub-components (one per tab) |
+|| `screens/admin/` | Admin sub-components (dialog editor, resource table, reports, bill history) + menu schema + field schema |
+|| `components/` | Stubs only — `POSCard`, `POSButton`, `POSChip`, `POSIcon`, `POSTextField` are not in active use |
 
 The POS menu and modifier dialogs use the live menu API; station screens use
 product routing returned by orders; admin and settings screens read and write
-the corresponding backend resources.
+the corresponding backend resources. UI styling uses semantic CSS classes
+(`.panel`, `.primary`, `.secondary`, `.metric`, `.setting-value`, etc.)
+defined in `frontend/src/styles.css`, with runtime-adjustable radii and
+heights from `theme.ts`.
 
 ## Backend modules
 
@@ -165,25 +191,65 @@ backend/
 │   ├── core/                   Configuration, security, and permissions
 │   ├── db/                     Session management and seed data
 │   ├── modules/                Feature routers, models, and services
+│   ├── schemas/                Pydantic request/response models
 │   ├── services/               CRUD, tickets, and printer services
 │   └── ws/                     WebSocket hub
 └── tests/                      API tests
-docs/                           UI design and audit documents
+frontend/
+├── src/
+│   ├── App.tsx                 Router shell + sidebar (~235 lines)
+│   ├── api.ts                  API client with Bearer auth
+│   ├── types.ts                Shared TypeScript types
+│   ├── theme.ts                UI token storage + localStorage
+│   ├── styles.css              Semantic CSS classes
+│   ├── common/                 Cross-screen helpers (can, useToast, format, chrome)
+│   ├── screens/                Per-screen modules
+│   │   ├── Admin.tsx, Cashier.tsx, Dashboard.tsx, Inventory.tsx,
+│   │   ├── Login.tsx, POS.tsx, Settings.tsx, Station.tsx
+│   │   ├── admin/              Admin sub-components + schemas
+│   │   └── settings/           Settings tab sub-components
+│   └── components/             POS* component stubs (not in active use)
+docs/                           UI design documents (mostly historical)
 run.sh                          Installer, build, seed, and runner script
 requirements.txt                Python dependencies
 ```
 
+## Recent changes
+
+For detailed change history, see `git log` or the recent commits at
+https://github.com/wagusk/brewpos-v2/commits/master. Notable refactors:
+
+- **Frontend modular split** — `App.tsx` reduced from 2,652 to 235 lines; the
+  remaining components live in `screens/`, `screens/admin/`, and
+  `screens/settings/`. Shared helpers consolidated into `common/`.
+- **Notification type deduplication** — the `Notify` callback type was
+  defined identically in six screens; now declared once in
+  `common/useToast.ts`.
+- **Schema consistency fix** — `orders.discount`, `orders.discount_reason`,
+  and `orders.tax` columns are now declared on the `Order` model so fresh
+  databases (built via `Base.metadata.create_all`) match the legacy dev
+  schema. A startup ALTER TABLE migration backfills older databases.
+
 ## Testing
 
-From the repository root:
+From the `backend` directory:
 
 ```bash
-PYTHONPATH=backend pytest -q
+PYTHONPATH=. python -m pytest tests/ -q
 ```
 
-The tests cover health and root endpoints, login success/failure, menu and
-table access, and admin authorization. Install the dependencies first if
-`pytest` is not available in the current environment.
+The current test suite contains 11 tests covering:
+
+- `/health` and `/` (root, including SPA HTML fallback)
+- PIN login (success + failure)
+- Menu and tables access
+- Admin authorization (cashier denied, admin allowed)
+- Cashier checkout permissions regression
+- Order model schema (discount/discount_reason/tax columns present)
+- OrderOut schema fields
+
+Install the dependencies first if `pytest` is not available in the current
+environment.
 
 ## License
 

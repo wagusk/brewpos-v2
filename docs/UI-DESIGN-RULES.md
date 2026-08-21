@@ -1,59 +1,31 @@
-# Brew-POS v2 — UI Design Rule
+# Brew-POS v2 — UI Design Rules (Summary Pointer)
 
-> **This file is a summary pointer.** The canonical, authoritative document is
-> **[`UI-DESIGN-RULE.md`](./UI-DESIGN-RULE.md)** (v1.0, ACTIVE). Read it before
-> any UI work. The summary below mirrors its core tenets for quick reference.
+> **STATUS: SUPERSEDED (2026-08-21)**
 
----
+This file was previously a summary pointer to
+[`UI-DESIGN-RULE.md`](./UI-DESIGN-RULE.md). Both documents describe a
+design system (POSCard / POSButton / POSChip / POSIcon / POSTextField +
+`monoTheme.tsx`) that was **never adopted** in the actual frontend
+codebase. They are preserved here for historical context only.
 
-## Core tenets
+## Where to look instead
 
-1. **Unified visual language** — every visible element belongs to a deliberate,
-   bounded component. No loose text. No floating labels. No stray elements.
-2. **Card-based, touch-first surfaces** — POSCard / POSButton / POSTextField /
-   POSChip / POSIcon (exported from `@/components`). No raw `<div>`, `<button>`,
-   `<input>`, or MUI primitives for interactive surfaces.
-3. **Minimal text, maximum clarity** — icons + color + hierarchy over verbose
-   labels. One action per card when possible.
-4. **Solid, color-coded, accessible** — playful but professional palette with
-   sufficient contrast (4.5:1 text, 3:1 disabled). Status / category / state
-   distinguished by color, not by text.
-5. **Centralized configuration** — zero hardcoded colors, sizes, radii, padding,
-   font sizes, or labels in page components. Every value flows from
-   `useTheme()` (`core/theme/monoTheme.tsx`). Adjustable at runtime via the
-   UI Settings page — no code changes to retheme.
+For the **current** UI conventions, see:
 
-## Forbidden patterns
+- `AI-REFERENCE.md` — section "UI Conventions (current, not MUI)"
+- `frontend/src/styles.css` — semantic CSS classes actually used
+- `frontend/src/theme.ts` — runtime-adjustable UI tokens
+- `frontend/src/App.tsx` — router shell with the active component tree
+- `frontend/src/screens/*.tsx` — the per-screen modules
 
-- Raw `<div style={{...}}>` for interactive surfaces → use `<POSCard>`.
-- Raw `<button>` → `<POSButton>`.
-- Raw `<input>` / MUI `<TextField>` → `<POSTextField>`.
-- Raw MUI `<Chip>` → `<POSChip>` with semantic variant (`status` / `station` /
-  `payment` / `category`).
-- Raw MUI icons without `<POSIcon>` wrapper.
-- Hardcoded hex / px / rem in style props → `c.colorName` / `c.ui.token` /
-  `c.fontSize('key')`.
-- Hardcoded labels in JSX → `t('i18n.key')` (English source in `en.ts`,
-  translations in `id.ts`).
+The planned-but-unimplemented component stubs are in
+`frontend/src/components/` (5–8 line re-exports, not imported anywhere).
 
-## Component map (canonical)
+## Why the change
 
-| Need | Component | Import |
-|---|---|---|
-| Container / surface | `<POSCard>` | `@/components` |
-| Action | `<POSButton>` | `@/components` |
-| Input | `<POSTextField>` | `@/components` |
-| Status / label / tag | `<POSChip>` | `@/components` |
-| Icon | `<POSIcon>` | `@/components` |
-| Theme tokens | `useTheme()` | `@/core/theme` |
-| i18n | `t()`, `useLocale()` | `@/modules/multilingual/i18n` |
-
-## Migration tracking
-
-See **[`UI-DESIGN-AUDIT-REPORT.md`](./UI-DESIGN-AUDIT-REPORT.md)** for the
-per-file violation list and milestone-by-milestone compliance progress.
-
-## Authority
-
-If this summary and `UI-DESIGN-RULE.md` ever disagree, **`UI-DESIGN-RULE.md`
-wins.** Update this file to match; never the other way around.
+The MUI-based design system was planned in the v1 design rule but the
+implementation chose a lighter approach: raw HTML elements + semantic
+CSS classes + `lucide-react` icons. The actual approach is smaller,
+faster to build, and easier to maintain for a small team. It can be
+extended later if a richer component system becomes worth the
+dependency cost.

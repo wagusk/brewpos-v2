@@ -1,4 +1,29 @@
-# Brew-POS V2 — UI Design Rule Audit Report
+# Brew-POS V2 — UI Design Rule Audit Report (Superseded)
+
+> **STATUS: SUPERSEDED (2026-08-21)**
+>
+> This audit was generated on 2026-08-12 against the v1.0 UI Design Rule
+> which described an MUI-based design system (POSCard / POSButton /
+> POSTextField / POSChip / POSIcon + `monoTheme.tsx`). **That design system
+> was never adopted in the actual codebase.**
+>
+> The active UI conventions are now described in:
+>
+> - `AI-REFERENCE.md` — section "UI Conventions (current, not MUI)"
+> - `frontend/src/styles.css` — semantic CSS classes actually in use
+> - `frontend/src/theme.ts` — runtime-adjustable UI tokens
+>
+> The per-file violations listed below reference `modules/`, `shared/`,
+> `LoginPage.tsx`, `TableView.tsx`, etc. — none of these exist in the
+> current codebase. They described a planned MUI architecture that was
+> superseded by the simpler "raw HTML + semantic CSS" approach.
+>
+> This document is preserved as historical context. New UI work should
+> follow `AI-REFERENCE.md`, not the audit below.
+
+---
+
+# Original audit (2026-08-12, historical)
 
 > Generated: 2026-08-12
 > Last updated: 2026-08-12
