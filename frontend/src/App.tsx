@@ -13,6 +13,7 @@ import { api, getToken, setToken } from "./api";
 import type { ModuleState, User } from "./types";
 import { can, title, useToast, type Screen } from "./common";
 import { Login, POS, Station, Cashier, Admin, SettingsPage } from "./screens";
+import { isConnected as wsConnected, subscribe as wsSubscribe } from "./ws";
 
 
 function App() {
@@ -58,6 +59,7 @@ function Root({
   const [user, setUser] = useState(initialUser);
   const { toast, notify } = useToast();
   const [error, setError] = useState("");
+  const [wsUp, setWsUp] = useState(wsConnected());
   useEffect(() => {
     (async () => {
       try {
@@ -71,6 +73,16 @@ function Root({
       }
     })();
   }, [setInitialUser, setModules]);
+  // Open the WS connection so any active screen can subscribe to broadcasts.
+  // The WS client is no-op until something subscribes; the Status dot in
+  // the topbar reflects connectivity.
+  useEffect(() => {
+    const offs = [
+      wsSubscribe("ws_connected", () => setWsUp(true)),
+      wsSubscribe("ws_disconnected", () => setWsUp(false)),
+    ];
+    return () => offs.forEach((off) => off());
+  }, []);
   if (!user || error)
     return (
       <Login
@@ -112,7 +124,7 @@ function Root({
             <h1>{title(screen)}</h1>
           </div>
           <div className="topbar-user">
-            <span className="status-dot" />
+            <span className={`status-dot ${wsUp ? "" : "offline"}`} title={wsUp ? "Real-time sync on" : "Real-time sync off"} />
             {user.name}
             <span className="role-pill">{user.role}</span>
           </div>

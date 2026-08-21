@@ -1,5 +1,0 @@
-export { POSCard } from './POSCard'
-export { POSButton } from './POSButton'
-export { POSTextField } from './POSTextField'
-export { POSChip } from './POSChip'
-export { POSIcon } from './POSIcon'

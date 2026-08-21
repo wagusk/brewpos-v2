@@ -15,6 +15,7 @@ import {
   title,
   type Notify,
 } from "../common";
+import { subscribe as wsSubscribe } from "../ws";
 
 export default function Cashier({
   user,
@@ -45,6 +46,18 @@ export default function Cashier({
   };
   useEffect(() => {
     load();
+  }, []);
+  // Keep the open-bills list in sync with the kitchen/bar. When a kitchen
+  // accepts an order (open -> accepted) the bill becomes payable; we want
+  // to see that change without waiting for the next user action.
+  useEffect(() => {
+    const offs = [
+      wsSubscribe("order_created", () => load()),
+      wsSubscribe("order_updated", () => load()),
+      wsSubscribe("order_cancelled", () => load()),
+      wsSubscribe("order_deleted", () => load()),
+    ];
+    return () => offs.forEach((off) => off());
   }, []);
   const close = async () => {
     if (!selected) return;

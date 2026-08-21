@@ -4,6 +4,7 @@ import { Grid3X3, RefreshCw, X } from "lucide-react";
 import type { Menu, Order, Product, Table, User } from "../types";
 import { api } from "../api";
 import { can, Loading, money, PanelTitle, type Notify, type Toast } from "../common";
+import { subscribe as wsSubscribe } from "../ws";
 
 type CartLine = {
   product: Product;
@@ -46,6 +47,20 @@ export default function POS({
   };
   useEffect(() => {
     load();
+  }, []);
+  // Refresh menu + tables when ANY order or table changes elsewhere
+  // (cashier closes a bill, kitchen accepts, admin edits a table).
+  useEffect(() => {
+    const offs = [
+      wsSubscribe("order_created", () => load()),
+      wsSubscribe("order_updated", () => load()),
+      wsSubscribe("order_cancelled", () => load()),
+      wsSubscribe("order_deleted", () => load()),
+      wsSubscribe("table_created", () => load()),
+      wsSubscribe("table_updated", () => load()),
+      wsSubscribe("table_deleted", () => load()),
+    ];
+    return () => offs.forEach((off) => off());
   }, []);
   const products = useMemo(
     () =>

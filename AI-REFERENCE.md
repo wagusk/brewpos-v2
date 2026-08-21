@@ -66,36 +66,30 @@ Brew-POS-V2/
     │   │   ├── format.ts       money(), title()
     │   │   ├── chrome.tsx      PanelTitle, Loading, Empty, Metric
     │   │   └── screen.ts       Screen route type
-    │   ├── screens/            Per-screen modules
-    │   │   ├── Login.tsx       PIN pad
-    │   │   ├── POS.tsx         Table grid, bill editor, cart
-    │   │   ├── Station.tsx     Kitchen + bar ticket queues
-    │   │   ├── Cashier.tsx     Partial-payment flow
-    │   │   ├── Admin.tsx       3-level menu orchestrator
-    │   │   ├── admin/          Admin sub-components
-    │   │   │   ├── menu.ts        types + ADMIN_MENU + pickFirstDetailId
-    │   │   │   ├── fields.ts      ADMIN_FIELDS schema
-    │   │   │   ├── AdminResourceDialog.tsx
-    │   │   │   ├── ResourceTable.tsx
-    │   │   │   ├── Reports.tsx
-    │   │   │   └── BillHistory.tsx
-    │   │   ├── Settings.tsx    6-tab settings orchestrator
-    │   │   ├── settings/       Settings sub-components
-    │   │   │   ├── GeneralSettings.tsx
-    │   │   │   ├── AppearanceSettings.tsx
-    │   │   │   ├── SettingValue.tsx
-    │   │   │   ├── TaxSettings.tsx
-    │   │   │   ├── DiscountSettings.tsx
-    │   │   │   ├── PrinterSettings.tsx
-    │   │   │   └── DatabaseSettings.tsx
-    │   │   ├── Inventory.tsx   Stock levels editor
-    │   │   └── Dashboard.tsx   Floor status (inactive)
-    │   └── components/         POS* component STUBS — NOT in active use
-    │       ├── POSCard.tsx     (5-line stub, unused)
-    │       ├── POSButton.tsx   (8-line stub, unused)
-    │       ├── POSChip.tsx     (8-line stub, unused)
-    │       ├── POSIcon.tsx     (5-line stub, unused)
-    │       └── POSTextField.tsx (7-line stub, unused)
+    │   └── screens/            Per-screen modules
+    │       ├── Login.tsx       PIN pad
+    │       ├── POS.tsx         Table grid, bill editor, cart
+    │       ├── Station.tsx     Kitchen + bar ticket queues
+    │       ├── Cashier.tsx     Partial-payment flow
+    │       ├── Admin.tsx       3-level menu orchestrator
+    │       ├── admin/          Admin sub-components
+    │       │   ├── menu.ts        types + ADMIN_MENU + pickFirstDetailId
+    │       │   ├── fields.ts      ADMIN_FIELDS schema
+    │       │   ├── AdminResourceDialog.tsx
+    │       │   ├── ResourceTable.tsx
+    │       │   ├── Reports.tsx
+    │       │   └── BillHistory.tsx
+    │       ├── Settings.tsx    6-tab settings orchestrator
+    │       ├── settings/       Settings sub-components
+    │       │   ├── GeneralSettings.tsx
+    │       │   ├── AppearanceSettings.tsx
+    │       │   ├── SettingValue.tsx
+    │       │   ├── TaxSettings.tsx
+    │       │   ├── DiscountSettings.tsx
+    │       │   ├── PrinterSettings.tsx
+    │       │   └── DatabaseSettings.tsx
+    │       ├── Inventory.tsx   Stock levels editor
+    │       └── Dashboard.tsx   Floor status (inactive)
     └── vite.config.ts
 └── docs/
     ├── UI-DESIGN-RULE.md       Historical design spec — superseded; describes
@@ -263,12 +257,9 @@ ternary.
 
 ## Historical (Do Not Follow)
 
-- `frontend/src/components/POSCard.tsx` etc. are 5-8 line stubs from an
-  earlier proposed design system that was never adopted. The code uses
-  raw HTML + CSS classes, not these components.
-- `docs/UI-DESIGN-RULE.md` describes the never-adopted POSCard/POSButton
-  design system. It is superseded by `frontend/src/styles.css` and
-  `frontend/src/theme.ts`.
 - The `app/`, `core/`, `modules/`, `shared/` tree under `frontend/src/`
   mentioned in earlier revisions of this file does not exist in the
   current code. Per-screen modules live under `frontend/src/screens/`.
+- `docs/UI-DESIGN-RULE.md` describes a never-adopted POSCard/POSButton
+  design system. It is superseded by `frontend/src/styles.css` and
+  `frontend/src/theme.ts`.

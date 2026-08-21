@@ -37,6 +37,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .topbar .eyebrow { display: none; }
 .topbar-user { position: absolute; left: 24px; display: flex; align-items: center; gap: 8px; color: var(--subtext); font-weight: 700; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.status-dot.offline { background: var(--subtext); }
 .role-pill, .tag, .status { min-height: 28px; padding: 5px 10px; border-radius: 99px; background: var(--secondary); color: var(--subtext); font-size: .75rem; font-weight: 800; }
 .page-body { max-width: 1600px; margin: auto; padding: 24px; }
 .stack { display: grid; gap: var(--ui-card-gap); }

@@ -3,6 +3,7 @@ import { RefreshCw } from "lucide-react";
 import type { Order, User } from "../types";
 import { api } from "../api";
 import { can, Empty, title, type Notify, type Toast } from "../common";
+import { subscribe as wsSubscribe } from "../ws";
 
 type StationKind = "kitchen" | "bar";
 
@@ -30,6 +31,19 @@ export default function Station({
     load();
     const id = window.setInterval(load, 10000);
     return () => window.clearInterval(id);
+  }, []);
+  // Real-time refresh: when ANY order changes, refresh. We refetch on
+  // every event rather than patching state, because order payloads can
+  // include item-level changes that are easier to re-read than to splice.
+  useEffect(() => {
+    const offs = [
+      wsSubscribe("order_created", () => load()),
+      wsSubscribe("order_updated", () => load()),
+      wsSubscribe("order_cancelled", () => load()),
+      wsSubscribe("order_item_cancelled", () => load()),
+      wsSubscribe("order_deleted", () => load()),
+    ];
+    return () => offs.forEach((off) => off());
   }, []);
   const visible = orders
     .map((o) => ({
