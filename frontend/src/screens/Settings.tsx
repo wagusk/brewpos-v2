@@ -10,7 +10,9 @@ import {
   DiscountSettings,
   PrinterSettings,
   DatabaseSettings,
+  PosOpsSettings as PosOpsTab,
 } from "./settings";
+import type { PosOpsSettings } from "../types";
 
 export default function SettingsPage({
   user,
@@ -23,21 +25,24 @@ export default function SettingsPage({
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [discount, setDiscount] = useState<DiscountPolicy | null>(null);
   const [printer, setPrinter] = useState<Record<string, unknown> | null>(null);
+  const [posOps, setPosOps] = useState<PosOpsSettings | null>(null);
   const [tab, setTab] = useState("general");
   const [uiSettings, setUiSettings] = useState<UISettings>(() => readUISettings());
   const editable = can(user, "admin.manage_settings");
   const load = async () => {
     try {
-      const [s, t, d, p] = await Promise.all([
+      const [s, t, d, p, po] = await Promise.all([
         api.settings(),
         api.taxes(),
         api.discount(),
         api.printer(),
+        api.posOps(),
       ]);
       setSettings(s);
       setTaxes((t as unknown as { taxes: Tax[] }).taxes ?? []);
       setDiscount(d);
       setPrinter(p as unknown as Record<string, unknown>);
+      setPosOps(po);
     } catch (e) {
       notify(
         e instanceof Error ? e.message : "Could not load settings",
@@ -64,13 +69,14 @@ export default function SettingsPage({
       );
     }
   };
-  if (!settings || !discount || !printer) return <Loading />;
+  if (!settings || !discount || !printer || !posOps) return <Loading />;
   return (
     <div className="stack">
       <div className="tab-bar">
         {[
           "general",
           "appearance",
+          "pos-ops",
           "tax",
           "discount",
           "printer",
@@ -100,6 +106,26 @@ export default function SettingsPage({
               setUiSettings(next);
               saveUISettings(next);
             }}
+          />
+        )}
+        {tab === "pos-ops" && (
+          <PosOpsTab
+            posOps={posOps}
+            save={async (body) => {
+              try {
+                const next = await api.updatePosOps(body);
+                setPosOps(next);
+                notify("POS operations saved");
+              } catch (e) {
+                notify(
+                  e instanceof Error
+                    ? e.message
+                    : "Could not save POS operations",
+                  "error",
+                );
+              }
+            }}
+            editable={editable}
           />
         )}
         {tab === "tax" && (
