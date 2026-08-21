@@ -86,3 +86,30 @@ def test_cashier_checkout_succeeds():
     # accepts the checkout request.
     assert "order.open" in user["permissions"], user["permissions"]
     assert "order.close" in user["permissions"], user["permissions"]
+
+
+def test_order_has_discount_tax_columns():
+    """Regression: Order model declares discount/discount_reason/tax columns.
+
+    Fresh DBs created via Base.metadata.create_all lacked these NOT NULL
+    columns on the legacy schema, causing INSERT to fail with
+    'NOT NULL constraint failed: orders.discount'. The model now owns
+    these columns so create_all produces a correct fresh schema.
+    """
+    from app.modules.orders.models import Order
+    from sqlalchemy import inspect
+    mapper = inspect(Order)
+    column_names = {c.key for c in mapper.columns}
+    assert "discount" in column_names
+    assert "discount_reason" in column_names
+    assert "tax" in column_names
+
+
+def test_order_out_includes_discount_tax():
+    """Regression: OrderOut schema exposes the new columns so the cashier
+    UI can show discounts and tax in the bill view."""
+    from app.schemas import OrderOut
+    fields = set(OrderOut.model_fields.keys())
+    assert "discount" in fields
+    assert "discount_reason" in fields
+    assert "tax" in fields

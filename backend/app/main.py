@@ -126,6 +126,20 @@ with current_engine().begin() as _migrate:
         except Exception:
             pass
 
+# M36 — additive column migrations for orders (discount/tax support).
+# Without these, fresh DBs can't insert because the legacy dev DB
+# already has NOT NULL columns the model doesn't declare.
+with current_engine().begin() as _migrate:
+    for _col, _ddl in (
+        ("discount",        "FLOAT DEFAULT 0.0 NOT NULL"),
+        ("discount_reason", "VARCHAR(200) DEFAULT '' NOT NULL"),
+        ("tax",             "FLOAT DEFAULT 0.0 NOT NULL"),
+    ):
+        try:
+            _migrate.execute(text(f"ALTER TABLE orders ADD COLUMN {_col} {_ddl}"))
+        except Exception:
+            pass
+
 _bootstrap_default_admin()
 
 # ── App ───────────────────────────────────────────────────────────────────

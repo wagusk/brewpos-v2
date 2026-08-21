@@ -160,6 +160,9 @@ class OrderOut(BaseModel):
     customer_name: str
     notes: str
     subtotal: float
+    discount: float = 0.0
+    discount_reason: str = ""
+    tax: float = 0.0
     total: float
     created_at: datetime
     updated_at: datetime

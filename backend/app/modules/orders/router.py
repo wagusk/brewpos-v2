@@ -136,7 +136,7 @@ async def accept_endpoint(order_id: int, db: Session = Depends(get_db), user: Us
 
 @router.post("/{order_id}/close", response_model=OrderOut)
 async def close_endpoint(order_id: int, payload: CloseOrderIn, db: Session = Depends(get_db), user: User = Depends(require_permission("order.close"))):
-    from app.core.config import get_discount_policy, resolve_preset_discount
+    from app.modules.discount.service import get_discount_policy, resolve_preset_discount
 
     resolved_discount = max(0.0, float(payload.discount or 0))
     applied_reason = (payload.discount_reason or "").strip()
