@@ -11,6 +11,12 @@ from app.core.permissions import default_permissions, normalise_permissions
 from app.models import Category, Product, Table, User, Role
 
 
+# Sentinel for partial-update endpoints so callers can distinguish
+# "field not provided" from "field explicitly null". Used for `kind` on
+# products where null means "inherit from category kind".
+_UNSET = object()
+
+
 # ---------- Roles ----------
 
 def list_roles(db: Session) -> list[Role]:
@@ -138,10 +144,11 @@ def create_product(db: Session, *, name: str, description: str, price: float, ca
 
 def update_product(
     db: Session, pid: int,
-    *, name: str | None, description: str | None, price: float | None,
+    *,
+    name: str | None, description: str | None, price: float | None,
     category_id: int | None, image: str | None, active: bool | None, sort: int | None,
     cost: float | None,
-    kind: str | None,
+    kind: "str | None | object" = _UNSET,  # type: ignore[valid-type]
 ) -> Product | None:
     p = db.get(Product, pid)
     if not p:
@@ -164,7 +171,9 @@ def update_product(
         p.sort = sort
     if cost is not None:
         p.cost = cost
-    if kind is not None:
+    if kind is not _UNSET:
+        # None here means "clear to null" (inherit from category). The
+        # _UNSET sentinel means "field not provided, leave alone".
         p.kind = kind if kind else None
     db.commit()
     db.refresh(p)

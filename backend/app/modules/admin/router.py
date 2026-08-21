@@ -111,7 +111,12 @@ def create_product_endpoint(payload: ProductIn, db: Session = Depends(get_db), u
 
 @router.patch("/products/{pid}", response_model=ProductOut)
 def update_product_endpoint(pid: int, payload: ProductUpdateIn, db: Session = Depends(get_db), user: UserModel = Depends(require_permission("admin.manage_menu"))):
-    p = crud.update_product(db, pid, name=payload.name, description=payload.description, price=payload.price, category_id=payload.category_id, image=payload.image, active=payload.active, sort=payload.sort, cost=payload.cost, kind=payload.kind)
+    # Distinguish "kind not provided" from "kind explicitly null". The
+    # frontend sends null when the admin picks "Use category default"
+    # (inheriting the category kind at order-time).
+    from app.services.crud import _UNSET
+    kind = payload.kind if "kind" in payload.model_fields_set else _UNSET
+    p = crud.update_product(db, pid, name=payload.name, description=payload.description, price=payload.price, category_id=payload.category_id, image=payload.image, active=payload.active, sort=payload.sort, cost=payload.cost, kind=kind)
     if not p:
         raise HTTPException(404, "Product not found")
     return ProductOut.model_validate(p)
