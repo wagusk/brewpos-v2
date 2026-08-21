@@ -40,7 +40,7 @@ import type {
   Tax,
   User,
 } from "./types";
-import { can, money, title, useToast, type Toast } from "./common";
+import { can, Empty, Loading, Metric, money, PanelTitle, title, useToast, type Toast } from "./common";
 import {
   DEFAULT_UI,
   readUISettings,
@@ -458,41 +458,6 @@ function Dashboard({
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-function Metric({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string | number;
-  icon: typeof CircleDollarSign;
-}) {
-  return (
-    <div className="metric">
-      <div className="metric-icon">
-        <Icon size={21} />
-      </div>
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  );
-}
-function PanelTitle({
-  title: label,
-  action,
-}: {
-  title: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="panel-title">
-      <h2>{label}</h2>
-      {action}
     </div>
   );
 }
@@ -2588,23 +2553,6 @@ function Inventory({
         )}
       </div>
     </section>
-  );
-}
-function Loading() {
-  return (
-    <div className="loading">
-      <RefreshCw className="spin" size={20} />
-      Loading workspace…
-    </div>
-  );
-}
-function Empty({ title: label, text }: { title: string; text: string }) {
-  return (
-    <div className="empty">
-      <Grid3X3 size={24} />
-      <strong>{label}</strong>
-      <span>{text}</span>
-    </div>
   );
 }
 
