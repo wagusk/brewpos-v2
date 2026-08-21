@@ -40,6 +40,7 @@ import type {
   Tax,
   User,
 } from "./types";
+import { can, money, title, useToast, type Toast } from "./common";
 import {
   DEFAULT_UI,
   readUISettings,
@@ -60,48 +61,6 @@ type CartLine = {
   modifiers: number[];
   notes: string;
 };
-type Toast = { message: string; kind?: "error" | "success" };
-
-const money = (value = 0) =>
-  new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
-const title = (value: string) =>
-  value.replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-// Mirror of backend app.core.permissions.can() so role defaults are honoured
-// even when the persisted permissions array is empty (e.g. legacy users from
-// before permissions were seeded, or a re-seed that didn't refresh them).
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  admin: [],          // role == admin short-circuits below
-  master: [],         // role == master short-circuits below
-  superuser: [],      // role == superuser short-circuits below
-  cashier: ["dashboard.view", "menu.view", "pos.view",
-            "order.open", "order.close", "order.cancel", "order.append"],
-  waiter: ["dashboard.view", "menu.view", "pos.view",
-           "order.open", "order.append"],
-  kitchen: ["dashboard.view", "kitchen.view", "bar.view", "menu.view",
-            "kitchen.serve", "bar.serve"],
-  bar: ["dashboard.view", "kitchen.view", "bar.view", "menu.view",
-        "kitchen.serve", "bar.serve"],
-};
-const can = (user: User, permission: string) => {
-  if (!user) return false;
-  if (user.role === "admin" || user.role === "master" || user.role === "superuser") {
-    return true;
-  }
-  if ((user.permissions ?? []).includes(permission)) return true;
-  return (ROLE_PERMISSIONS[user.role] ?? []).includes(permission);
-};
-
-function useToast() {
-  const [toast, setToast] = useState<Toast | null>(null);
-  const notify = (message: string, kind: Toast["kind"] = "success") => {
-    setToast({ message, kind });
-    window.setTimeout(() => setToast(null), 3500);
-  };
-  return { toast, notify };
-}
 
 function Login({ onLogin }: { onLogin: (user: User, token: string) => void }) {
   const [pin, setPin] = useState("");
